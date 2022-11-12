@@ -1,0 +1,405 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Create SSO PermissionSets for  IAM Identity Center.
+
+Mappings:
+  SessionDurationMap:
+    ISO8601Std:
+      1HOURS: PT1H
+      2HOURS: PT2H
+      4HOURS: PT4H
+      8HOURS: PT8H
+      12HOURS: PT12H
+      24HOURS: PT24H
+
+# Parameter for whether create the PermissionSet
+  CreatePermissionSetFlagMap:
+    SsoPermSetForAdmin: 
+      Flag: 'true'
+    SsoPermSetForPU: 
+      Flag: 'true'
+    SsoPermSetForSA:
+      Flag: true #真偽値でも文字列とみなされる
+    SsoPermSetForRO: 
+      Flag: true
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      -
+        Label:
+          default: System Configuration
+        Parameters:
+          - AccountName
+          - Env
+          - Stack
+          - Owner
+      -
+        Label:
+          default: SSM Parameter Key Configuration
+        Parameters:
+          - SsmAccInfo
+          - KeyForSsoInstanceArn
+      -
+        Label:
+          default: IAM Identity Center Configuration
+        Parameters:
+          - RelayStateURL
+          - CreatePermSetForAdmin
+          - ManagedPolicyArnForAdmin
+          - SessionDurationForAdmin
+          - CreatePermSetForPU
+          - ManagedPolicyArnForPU
+          - SessionDurationForPU
+          - CreatePermSetForSA
+          - ManagedPolicyArnForSA
+          - SessionDurationForSA
+          - CreatePermSetForRO
+          - ManagedPolicyArnForRO
+          - SessionDurationForRO
+    
+    ParameterLabels:
+      Stack:
+        default: 'Stack: *Only lowercase alphanumeric characters and hyphens are allowed.'
+      SsmAccInfo: 
+        default: 'SsmAccInfo: *Only lowercase alphanumeric characters and hyphens are allowed.'
+      Owner:
+        default: 'Owner: *Only lowercase alphanumeric characters and hyphens are allowed. Please put a hyphen between your first name and last name.'
+
+Parameters:
+# Paramters for System Info
+  AccountName:
+    Description: Specify the Name of the Account to deploy this stack.
+    Type: String
+    Default: root
+    AllowedValues:
+      - root
+
+  Env:
+    Description: Specify the Env Tag. 
+    Type: String
+    Default: common
+    AllowedValues:
+      - prod
+      - stage
+      - test
+      - dev
+      - common
+
+  Stack:
+    Description: Specify the Stack Tag.
+    Type: String
+    Default: infra
+    AllowedPattern: ^[a-z]([\-]{0,1}[a-z0-9]+)*$
+    ConstraintDescription: This Parameter must match pattern ^[a-z]([\-]{0.1}[a-z0-9]+)*$
+
+  Owner:
+    Description: Enter the name of the person creating this stack.
+    Type: String
+    Default: masaki-ishimoto
+    AllowedPattern: ^[a-z]([\-]{0,1}[a-z0-9]+)*$
+    ConstraintDescription: This Parameter must match pattern ^[a-z]([\-]{0.1}[a-z0-9]+)*$
+
+# Parameters for SSM Parameter Store
+  SsmAccInfo:
+    Description: Enter the Account Name and ID with SSM Parameter Store to be referenced.
+    Type: String
+    Default: root-577787435504
+    AllowedPattern: ^[a-z]([\-]{0,1}[a-z0-9]+)*$
+    ConstraintDescription: This Parameter must match pattern ^[a-z]([\-]{0.1}[a-z0-9]+)*$
+
+  KeyForSsoInstanceArn:
+    Description: Specify the SSM Parameter Key of the SSO Instance Arn.
+    Type: String
+    Default: sso/instancearn
+
+  # SSOInstanceArn:
+  #   Description: Specify the ARN of the SSO Instance.
+  #   Type: String
+  #   Default: '{{resolve:ssm:/sso/instancearn:1}}'
+
+  # SsmAccName:
+  #   Description: Specify the Account Name with SSM Parameter Store to be referenced. *Please be consistent with the SsmAccId.
+  #   Type: String
+  #   Default: root
+
+  # SsmAccId:
+  #   Description: Specify the Account ID with SSM Parameter Store to be referenced. *Please be consistent with the SsmAccName.
+  #   Type: String
+  #   Default: 577787435504
+
+  # SsoAccRootKey:
+  #   Type: String
+  #   Default: sso/accountid/root
+
+  # KeyForSsoInstanceArn:
+  #   Description: Specify the SSM Parameter Key of the SSO Instance Arn.
+  #   Type: AWS::SSM::Parameter::Name
+  #   Default: /root-577787435504/multi-account-infra/sso/instancearn
+
+# Parameters for SSO
+  RelayStateURL:
+    Description: Specify the URL to redirect.
+    Type: String
+    Default: https://ap-northeast-1.console.aws.amazon.com/console/home
+
+# Parameters for Administrator PermissionSet
+  CreatePermSetForAdmin:
+    Description: Select whether to create PermissionSet for Administrator.
+    Type: String
+    Default: true
+    AllowedValues:
+      - true
+      - false
+
+  ManagedPolicyArnForAdmin:
+    Description: Specify the Managed Policy Arn for AdministratorAccess.
+    Type: String
+    Default: arn:aws:iam::aws:policy/AdministratorAccess
+
+  SessionDurationForAdmin:
+    Description: Specify the Session Duration for AdministratorAccess.
+    Type: String
+    Default: 12HOURS
+    AllowedValues:
+      - 1HOURS
+      - 2HOURS
+      - 4HOURS
+      - 8HOURS
+      - 12HOURS
+      - 24HOURS
+
+# Parameters for PowerUser PermissionSet
+  CreatePermSetForPU:
+    Description: Select whether to create PermissionSet for PowerUser.
+    Type: String
+    Default: true
+    AllowedValues:
+      - true
+      - false
+
+  ManagedPolicyArnForPU:
+    Description: Specify the Managed Policy Arn for PowerUserAccess.
+    Type: String
+    Default: arn:aws:iam::aws:policy/PowerUserAccess
+
+  SessionDurationForPU:
+    Description: Specify the Session Duration for PowerUserAccess.
+    Type: String
+    Default: 12HOURS
+    AllowedValues:
+      - 1HOURS
+      - 2HOURS
+      - 4HOURS
+      - 8HOURS
+      - 12HOURS
+      - 24HOURS
+
+# Parameters for SecrityAudit PermissionSet
+  CreatePermSetForSA:
+    Description: Select whether to create PermissionSet for SecurityAudit.
+    Type: String
+    Default: true
+    AllowedValues:
+      - true
+      - false
+
+  ManagedPolicyArnForSA:
+    Description: Specify the Managed Policy Arn for SecurityAudit.
+    Type: String
+    Default: arn:aws:iam::aws:policy/SecurityAudit
+
+  SessionDurationForSA:
+    Description: Specify the Session Duration for SecurityAudit.
+    Type: String
+    Default: 12HOURS
+    AllowedValues:
+      - 1HOURS
+      - 2HOURS
+      - 4HOURS
+      - 8HOURS
+      - 12HOURS
+      - 24HOURS
+
+# Parameters for ReadOnly PermissionSet
+  CreatePermSetForRO:
+    Description: Select whether to create PermissionSet for ReadOnly.
+    Type: String
+    Default: true
+    AllowedValues:
+      - true
+      - false
+
+  ManagedPolicyArnForRO:
+    Description: Specify the Managed Policy Arn for ReadOnlyAccess.
+    Type: String
+    Default: arn:aws:iam::aws:policy/ReadOnlyAccess
+
+  SessionDurationForRO:
+    Description: Specify the Session Duration for ReadOnlyAccess.
+    Type: String
+    Default: 12HOURS
+    AllowedValues:
+      - 1HOURS
+      - 2HOURS
+      - 4HOURS
+      - 8HOURS
+      - 12HOURS
+      - 24HOURS
+
+Conditions:
+  CreatePermSetForAdmin:
+    # !Equals ['true', !FindInMap [CreatePermissionSetFlagMap, SsoPermSetForAdmin, Flag]]
+    !Not [!Equals ['', !Ref CreatePermSetForAdmin]]
+  CreatePermSetForPU:
+    # !Equals ['true', !FindInMap [CreatePermissionSetFlagMap, SsoPermSetForPU, Flag]]
+    !Not [!Equals ['', !Ref CreatePermSetForPU]]
+  CreatePermSetForSA:
+    # !Equals ['true', !FindInMap [CreatePermissionSetFlagMap, SsoPermSetForSA, Flag]]
+    !Not [!Equals ['', !Ref CreatePermSetForSA]]
+  CreatePermSetForRO:
+    # !Equals ['true', !FindInMap [CreatePermissionSetFlagMap, SsoPermSetForRO, Flag]]
+    !Not [!Equals ['', !Ref CreatePermSetForRO]]
+
+Resources:
+#------------------------------------#
+# IAM Identity Center Resources
+#------------------------------------#
+  SsoPermSetForAdmin:
+    Condition: CreatePermSetForAdmin
+    Type: AWS::SSO::PermissionSet
+    Properties: 
+      Description: Managed PermissionSet for Administrator.
+      InstanceArn: !Sub '{{resolve:ssm:/${SsmAccInfo}/${KeyForSsoInstanceArn}}}'
+      ManagedPolicies: 
+        - !Ref ManagedPolicyArnForAdmin
+      Name: AdministratorAccess
+      RelayStateType: !Ref RelayStateURL
+      SessionDuration: !FindInMap [SessionDurationMap, ISO8601Std, !Ref SessionDurationForAdmin]
+      Tags:
+        - Key: Env
+          Value: !Ref Env
+        - Key: Stack
+          Value: !Ref Stack
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: Cost
+          Value: !Sub ${Env}-${Stack}
+        # - Key: Test
+        #   Value: !Sub test-{{resolve:ssm:${SsmAccName}-${SsmAccId}/${Stack}/${SsmSsoAccRootKey}}}-{{resolve:ssm:${SsmAccName}-${SsmAccId}/${Stack}/${SsmKeyForSsoInstanceArn}}}
+        # - Key: Test2
+        #   Value: !Join [ '-', [!Sub '{{resolve:ssm:${SsmAccName}-${SsmAccId}/${Stack}/${SsmSsoAccRootKey}}}', !Sub '{{resolve:ssm:${SsmAccName}-${SsmAccId}/${Stack}/${SsmKeyForSsoInstanceArn}}}']]
+
+  SsoPermSetForPU:
+    Condition: CreatePermSetForPU
+    Type: AWS::SSO::PermissionSet
+    Properties: 
+      Description: Managed PermissionSet for PowerUser.
+      InstanceArn: !Sub '{{resolve:ssm:/${SsmAccInfo}/${KeyForSsoInstanceArn}}}'
+      ManagedPolicies: 
+        - !Ref ManagedPolicyArnForPU
+      Name: PowerUserAccess
+      RelayStateType: !Ref RelayStateURL
+      SessionDuration: !FindInMap [SessionDurationMap, ISO8601Std, !Ref SessionDurationForPU]
+      Tags:
+        - Key: Env
+          Value: !Ref Env
+        - Key: Stack
+          Value: !Ref Stack
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: Cost
+          Value: !Sub ${Env}-${Stack}
+
+  SsoPermSetForSA:
+    Condition: CreatePermSetForSA
+    Type: AWS::SSO::PermissionSet
+    Properties: 
+      Description: Managed PermissionSet for SecurityAuditUser.
+      InstanceArn: !Sub '{{resolve:ssm:/${SsmAccInfo}/${KeyForSsoInstanceArn}}}'
+      ManagedPolicies: 
+        - !Ref ManagedPolicyArnForSA
+      Name: SecurityAuditAccess
+      RelayStateType: !Ref RelayStateURL
+      SessionDuration: !FindInMap [SessionDurationMap, ISO8601Std, !Ref SessionDurationForSA]
+      Tags:
+        - Key: Env
+          Value: !Ref Env
+        - Key: Stack
+          Value: !Ref Stack
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: Cost
+          Value: !Sub ${Env}-${Stack}
+
+  SsoPermSetForRO:
+    Condition: CreatePermSetForRO
+    Type: AWS::SSO::PermissionSet
+    Properties: 
+      Description: Managed PermissionSet for ReadOnlyUser.
+      InstanceArn: !Sub '{{resolve:ssm:/${SsmAccInfo}/${KeyForSsoInstanceArn}}}'
+      ManagedPolicies: 
+        - !Ref ManagedPolicyArnForRO
+      Name: ReadOnlyAccess
+      RelayStateType: !Ref RelayStateURL
+      SessionDuration: !FindInMap [SessionDurationMap, ISO8601Std, !Ref SessionDurationForRO]
+      Tags:
+        - Key: Env
+          Value: !Ref Env
+        - Key: Stack
+          Value: !Ref Stack
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: Cost
+          Value: !Sub ${Env}-${Stack}
+
+#------------------------------------#
+# SSM Parameter
+#------------------------------------#
+  SsmParamForAdmin:
+    Condition: CreatePermSetForAdmin
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /${AccountName}-${AWS::AccountId}/sso/permissionsetarn/administratoraccess
+      Type: String
+      Value: !GetAtt SsoPermSetForAdmin.PermissionSetArn
+      Tags:
+        Env: !Ref Env
+        Stack: !Ref Stack
+        Owner: !Ref Owner
+        Cost: !Sub ${Env}-${Stack}
+  SsmParamForPU:
+    Condition: CreatePermSetForPU
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /${AccountName}-${AWS::AccountId}/sso/permissionsetarn/poweruseraccess
+      Type: String
+      Value: !GetAtt SsoPermSetForPU.PermissionSetArn
+      Tags:
+        Env: !Ref Env
+        Stack: !Ref Stack
+        Owner: !Ref Owner
+        Cost: !Sub ${Env}-${Stack}
+  SsmParamForSA:
+    Condition: CreatePermSetForSA
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /${AccountName}-${AWS::AccountId}/sso/permissionsetarn/securityaudit
+      Type: String
+      Value: !GetAtt SsoPermSetForSA.PermissionSetArn
+      Tags:
+        Env: !Ref Env
+        Stack: !Ref Stack
+        Owner: !Ref Owner
+        Cost: !Sub ${Env}-${Stack}
+  SsmParamForRO:
+    Condition: CreatePermSetForRO
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /${AccountName}-${AWS::AccountId}/sso/permissionsetarn/readonlyaccess
+      Type: String
+      Value: !GetAtt SsoPermSetForRO.PermissionSetArn
+      Tags:
+        Env: !Ref Env
+        Stack: !Ref Stack
+        Owner: !Ref Owner
+        Cost: !Sub ${Env}-${Stack}

@@ -1,0 +1,229 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Notify the S3 Event to MS Teams.
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - 
+        Label:
+          default: System Configuration
+        Parameters:
+          - Env
+          - Stack
+          - Owner
+
+    ParameterLabels:
+      Stack:
+        default: 'Stack: *Only lowercase alphanumeric characters and hyphens are allowed.'
+      Owner:
+        default: 'Owner: *Only lowercase alphanumeric characters and hyphens are allowed. Please put a hyphen between your first name and last name.'
+
+#--------------------------------------------------#
+# Input Parameters
+#--------------------------------------------------#
+Parameters:
+  Env:
+    Description: Specify the Env Tag. 
+    Type: String
+    Default: prod
+    AllowedValues:
+      - prod
+      - stage
+      - test
+      - dev
+      - common
+
+  Stack:
+    Description: Specify the Stack Tag.
+    Type: String
+    Default: event-notification
+    AllowedPattern: ^[a-z]([\-]{0,1}[a-z0-9]+)*$
+    ConstraintDescription: This Parameter must match pattern ^[a-z]([\-]{0.1}[a-z0-9]+)*$
+
+  Owner:
+    Description: Enter the name of the person creating this stack.
+    Type: String
+    Default: masaki-ishimoto
+    AllowedPattern: ^[a-z]([\-]{0,1}[a-z0-9]+)*$
+    ConstraintDescription: This Parameter must match pattern ^[a-z]([\-]{0.1}[a-z0-9]+)*$
+
+  TeamsWebhookUrl:
+    Description: Enter the URL of the MS Teams Incoming Webhook.
+    Type: String
+    Default: https://rs9101610433.webhook.office.com/webhookb2/52661cb8-ca3d-43c7-83c5-123ed0b70f53@83ca6826-1d1a-4bdc-9f49-eea088abb08d/IncomingWebhook/a48bb5e837ee428fb757bf10118dcca1/06b80440-849b-49a7-9a9b-59cfb5f0853a
+
+Resources:
+#--------------------------------------------------#
+# SSM Parameter Store
+#--------------------------------------------------#
+  SsmParamWebhookUrl:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /lambda/environment-variables/incoming-webhook-url
+      Type: String
+      Value: !Ref TeamsWebhookUrl
+      Tags:
+        Env: !Ref Env
+        Stack: !Ref Stack
+        Owner: !Ref Owner
+        Cost: !Sub ${Env}-${Stack}
+
+  SnsTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: SnsTopic
+      Subscription: 
+        - Endpoint: !GetAtt LambdaFunc.Arn
+          Protocol: lambda
+      Tags: 
+        - Key: Env
+          Value: !Ref Env
+        - Key: Stack
+          Value: !Ref Stack
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: Cost
+          Value: !Sub ${Env}-${Stack}
+
+  SnsTopicPolicy:
+    Type: AWS::SNS::TopicPolicy
+    Properties:
+      Topics:
+        - !Ref SnsTopic
+      PolicyDocument:
+        Id: !Ref SnsTopic
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: s3.amazonaws.com
+            Action: SNS:Publish
+            Resource: !Ref SnsTopic
+            Condition:
+              ArnLike:
+                aws:SourceArn: !Sub arn:aws:s3:::snsbucket-${AWS::AccountId}
+
+  S3BucketSns:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub snsbucket-${AWS::AccountId}
+      NotificationConfiguration:
+        TopicConfigurations:
+          - Event: s3:ObjectCreated:*
+            Topic: !Ref SnsTopic
+          - Event: s3:ObjectRemoved:*
+            Topic: !Ref SnsTopic
+          - Event: s3:ObjectRestore:*
+            Topic: !Ref SnsTopic
+      Tags: 
+        - Key: Env
+          Value: !Ref Env
+        - Key: Stack
+          Value: !Ref Stack
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: Cost
+          Value: !Sub ${Env}-${Stack}
+
+  IamRoleLambda:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: IamRoleLambda
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Tags: 
+        - Key: Env
+          Value: !Ref Env
+        - Key: Stack
+          Value: !Ref Stack
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: Cost
+          Value: !Sub ${Env}-${Stack}
+
+  LambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref LambdaFunc
+      Principal: sns.amazonaws.com
+      SourceArn: !Ref SnsTopic
+
+  LambdaFunc:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: LambdaFunc
+      Code:
+        ZipFile: |
+          #! /usr/bin/python3.6
+          import os
+          import boto3
+          import urllib3
+          import json
+
+          http = urllib3.PoolManager()
+          s3 = boto3.client('s3')
+
+          def lambda_handler(event, context):
+              url = os.environ['TEAMS_WEBHOOK_URL']
+              s3_event = json.loads(event['Records'][0]['Sns']['Message'])
+              s3_region = s3_event['Records'][0]['awsRegion']
+              s3_event_name = s3_event['Records'][0]['eventName']
+              s3_event_record = s3_event['Records'][0]['s3']
+              s3_bucket_name = s3_event_record['bucket']['name']
+              s3_object_name = s3_event_record['object']['key']
+              s3_url = f'https://{s3_bucket_name}.s3.{s3_region}.amazonaws.com/{s3_object_name}'
+
+              msg = {
+                      '@type': 'MessageCard',
+                      '@context':'http://schema.org/extensions',
+                      'themeColor': 'theme_color_normal',
+                      'summary': 'S3Bucket is Updated.',
+                      'sections': [
+                          {
+                              'activityTitle': '<strong style="color:blue;"> S3Bucket Update Detection </strong>' 
+                          },
+                          {
+                              'markdown': 'true',
+                              'facts': [
+                                  {
+                                      'name': 'Event Name',
+                                      'value': s3_event_name
+                                  },
+                                  {
+                                      'name': 'URL of the Object updated',
+                                      'value': s3_url
+                                  }
+                              ]
+                          }
+                      ]
+              }
+              encoded_msg = json.dumps(msg).encode('utf-8')
+              resp = http.request('POST', url, body=encoded_msg)
+
+      Environment:
+        Variables:
+          TEAMS_WEBHOOK_URL: !Ref TeamsWebhookUrl
+      Handler: index.lambda_handler
+      MemorySize: 128
+      Role: !GetAtt IamRoleLambda.Arn
+      Runtime: python3.7
+      Timeout: 30
+      Tags: 
+        - Key: Env
+          Value: !Ref Env
+        - Key: Stack
+          Value: !Ref Stack
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: Cost
+          Value: !Sub ${Env}-${Stack}

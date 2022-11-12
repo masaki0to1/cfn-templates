@@ -1,0 +1,224 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Assign Principals to Accounts for IAM Identity Center.
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      -
+        Label:
+          default: System Configuration
+        Parameters:
+          - AccountName
+          - Env
+          - Stack
+          - Owner
+      # -
+      #   Label:
+      #     default: IAM Identity Center Configuration
+      #   Parameters:
+      #     - SsoInstanceArn
+      - 
+        Label:
+          default: SSM Parameter Key Configuration
+        Parameters:
+          - SsmAccInfo
+          - KeyForSsoInstanceArn
+          - KeyForSsoPermSetArnAdmin
+          - KeyForSsoPermSetArnPU
+          - KeyForSsoGroupIdAdmin
+          - KeyForSsoGroupIdPU
+          - KeyForAccIdRoot
+          - KeyForAccIdEzapp
+          - KeyForAccIdOperation
+          - KeyForAccIdSandbox
+
+    # ParameterLabels:
+    #   SsmAccName:
+    #     default: 'SsmAccName: *Please be consistent with the SsmAccId.'
+    #   SsmAccId:
+    #     default: 'SsmAccId: *Please be consistent with the SsmAccName.'
+
+    ParameterLabels:
+      Stack:
+        default: 'Stack: *Only lowercase alphanumeric characters and hyphens are allowed.'
+      SsmAccInfo: 
+        default: 'SsmAccInfo: *Only lowercase alphanumeric characters and hyphens are allowed.'
+      Owner:
+        default: 'Owner: *Only lowercase alphanumeric characters and hyphens are allowed. Please put a hyphen between your first name and last name.'
+
+Parameters:
+  AccountName:
+    Description: Specify the Name of the Account to deploy this stack.
+    Type: String
+    Default: root
+    AllowedValues:
+      - root
+
+  Env:
+    Description: Specify the Env Tag. 
+    Type: String
+    Default: common
+    AllowedValues:
+      - prod
+      - stage
+      - test
+      - dev
+      - common
+
+  Stack:
+    Description: Specify the Stack Tag.
+    Type: String
+    Default: infra
+    AllowedPattern: ^[a-z]([\-]{0,1}[a-z0-9]+)*$
+    ConstraintDescription: This Parameter must match pattern ^[a-z]([\-]{0.1}[a-z0-9]+)*$
+
+  # SsoInstanceArn:
+  #   Description: Specify the ARN of the SSO Instance.
+  #   Type: String
+  #   Default: '{{resolve:ssm:/root-577787435504/sso/instancearn:1}}'
+
+  # SsmAccName:
+  #   Description: Specify the Account Name with SSM Parameter Store to be referenced. *Please be consistent with the SsmAccId.
+  #   Type: String
+  #   Default: root
+
+  # SsmAccId:
+  #   Description: Specify the Account ID with SSM Parameter Store to be referenced. *Please be consistent with the SsmAccName.
+  #   Type: String
+  #   Default: 577787435504
+  
+  SsmAccInfo:
+    Description: Enter the Account Name and ID with SSM Parameter Store to be referenced.
+    Type: String
+    Default: root-577787435504
+    AllowedPattern: ^[a-z]([\-]{0,1}[a-z0-9]+)*$
+    ConstraintDescription: This Parameter must match pattern ^[a-z]([\-]{0.1}[a-z0-9]+)*$
+
+  Owner:
+    Description: Enter the name of the person creating this stack.
+    Type: String
+    Default: masaki-ishimoto
+    AllowedPattern: ^[a-z]([\-]{0,1}[a-z0-9]+)*$
+    ConstraintDescription: This Parameter must match pattern ^[a-z]([\-]{0.1}[a-z0-9]+)*$
+
+  # KeyForSsoInstanceArn:
+  #   Type: String
+  #   Default: sso/instancearn
+
+# SsoInstanceArn Key
+  KeyForSsoInstanceArn:
+    Description: Specify the SSM Parameter Key of the SSO Instance Arn.
+    Type: String
+    Default: sso/instancearn
+
+# PermissionSetArn Key
+  KeyForSsoPermSetArnAdmin:
+    Description: Specify the SSM Parameter Key of the SSO PermissionSet for Administrator.
+    Type: String
+    Default: sso/permissionsetarn/administratoraccess
+
+  KeyForSsoPermSetArnPU:
+    Description: Specify the SSM Parameter Key of the SSO PermissionSet for PowerUser.
+    Type: String
+    Default: sso/permissionsetarn/poweruseraccess
+
+# PrincipalId Key
+  KeyForSsoGroupIdAdmin:
+    Description: Specify the SSM Parameter Key of the SSO Group for Administrator.
+    Type: String
+    Default: sso/groupid/administrator
+
+  KeyForSsoGroupIdPU:
+    Description: Specify the SSM Parameter Key of the SSO Group for PowerUser.
+    Type: String
+    Default: sso/groupid/poweruser
+
+# AccountID Key
+  KeyForAccIdRoot:
+    Description: Specify the SSM Parameter Key of the Account ID for root.
+    Type: String
+    Default: accountid/root
+
+  KeyForAccIdEzapp:
+    Description: Specify the SSM Parameter Key of the Account ID for ezapp.
+    Type: String
+    Default: accountid/ezapp
+
+  KeyForAccIdOperation:
+    Description: Specify the SSM Parameter Key of the Account ID for operation.
+    Type: String
+    Default: accountid/operation
+
+  KeyForAccIdSandbox:
+    Description: Specify the SSM Parameter Key of the Account ID for sandbox.
+    Type: String
+    Default: accountid/sandbox
+
+  KeyForAccIdMailserver:
+    Description: Specify the SSM Parameter Key of the Account ID for sandbox.
+    Type: String
+    Default: accountid/mailserver
+
+Resources:
+#------------------------------------#
+# IAM Identity Center Resources
+#------------------------------------#
+  SsoAssignAdministratorToRoot:
+    Type: AWS::SSO::Assignment
+    Properties: 
+      InstanceArn: !Sub '{{resolve:ssm:/${SsmAccInfo}/${KeyForSsoInstanceArn}}}'
+      PermissionSetArn: !Sub '{{resolve:ssm:/${SsmAccInfo}/${KeyForSsoPermSetArnAdmin}}}'
+      PrincipalId: !Sub '{{resolve:ssm:/${SsmAccInfo}/${KeyForSsoGroupIdAdmin}}}'
+      PrincipalType: GROUP
+      TargetId: !Sub '{{resolve:ssm:/${SsmAccInfo}/${KeyForAccIdRoot}}}'
+      TargetType: AWS_ACCOUNT
+
+  SsoAssignPowerUserToRoot:
+    Type: AWS::SSO::Assignment
+    Properties:   
+      InstanceArn: !Sub '{{resolve:ssm:/${SsmAccInfo}/${KeyForSsoInstanceArn}}}'
+      PermissionSetArn: !Sub '{{resolve:ssm:/${SsmAccInfo}/${KeyForSsoPermSetArnPU}}}'
+      PrincipalId: !Sub '{{resolve:ssm:/${SsmAccInfo}/${KeyForSsoGroupIdPU}}}'
+      PrincipalType: GROUP
+      TargetId: !Sub '{{resolve:ssm:/${SsmAccInfo}/${KeyForAccIdRoot}}}'
+      TargetType: AWS_ACCOUNT
+
+  SsoAssignAdministratorToEzapp:
+    Type: AWS::SSO::Assignment
+    Properties: 
+      InstanceArn: !Sub '{{resolve:ssm:/${SsmAccInfo}/${KeyForSsoInstanceArn}}}'
+      PermissionSetArn: !Sub '{{resolve:ssm:/${SsmAccInfo}/${KeyForSsoPermSetArnAdmin}}}'
+      PrincipalId: !Sub '{{resolve:ssm:/${SsmAccInfo}/${KeyForSsoGroupIdAdmin}}}'
+      PrincipalType: GROUP
+      TargetId: !Sub '{{resolve:ssm:/${SsmAccInfo}/${KeyForAccIdEzapp}}}'
+      TargetType: AWS_ACCOUNT
+
+  SsoAssignPowerUserToEzapp:
+    Type: AWS::SSO::Assignment
+    Properties: 
+      InstanceArn: !Sub '{{resolve:ssm:/${SsmAccInfo}/${KeyForSsoInstanceArn}}}'
+      PermissionSetArn: !Sub '{{resolve:ssm:/${SsmAccInfo}/${KeyForSsoPermSetArnPU}}}'
+      PrincipalId: !Sub '{{resolve:ssm:/${SsmAccInfo}/${KeyForSsoGroupIdPU}}}'
+      PrincipalType: GROUP
+      TargetId: !Sub '{{resolve:ssm:/${SsmAccInfo}/${KeyForAccIdEzapp}}}'
+      TargetType: AWS_ACCOUNT
+
+  SsoAssignAdministratorToSandbox:
+    Type: AWS::SSO::Assignment
+    Properties: 
+      InstanceArn: !Sub '{{resolve:ssm:/${SsmAccInfo}/${KeyForSsoInstanceArn}}}'
+      PermissionSetArn: !Sub '{{resolve:ssm:/${SsmAccInfo}/${KeyForSsoPermSetArnAdmin}}}'
+      PrincipalId: !Sub '{{resolve:ssm:/${SsmAccInfo}/${KeyForSsoGroupIdAdmin}}}'
+      PrincipalType: GROUP
+      TargetId: !Sub '{{resolve:ssm:/${SsmAccInfo}/${KeyForAccIdSandbox}}}'
+      TargetType: AWS_ACCOUNT
+
+  SsoAssignAdministratorToMailserver:
+    Type: AWS::SSO::Assignment
+    Properties: 
+      InstanceArn: !Sub '{{resolve:ssm:/${SsmAccInfo}/${KeyForSsoInstanceArn}}}'
+      PermissionSetArn: !Sub '{{resolve:ssm:/${SsmAccInfo}/${KeyForSsoPermSetArnAdmin}}}'
+      PrincipalId: !Sub '{{resolve:ssm:/${SsmAccInfo}/${KeyForSsoGroupIdAdmin}}}'
+      PrincipalType: GROUP
+      TargetId: !Sub '{{resolve:ssm:/${SsmAccInfo}/${KeyForAccIdMailserver}}}'
+      TargetType: AWS_ACCOUNT

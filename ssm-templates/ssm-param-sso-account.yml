@@ -1,0 +1,174 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Create SSM Parameters of the Member Accounts for AWS Organizations.
+
+Mappings:
+  AccountMap:
+    root:
+      ID: 577787435504
+    ezapp: 
+      ID: 498176219478
+    operation:
+      ID: 408865543541
+    sandbox:
+      ID: 727008614144
+    mailserver:
+      ID: 273203673559
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      -
+        Label:
+          default: System Configuration
+        Parameters:
+          - AccountList
+          - AccountName
+          - Env
+          - Stack
+          - Owner
+
+    ParameterLabels:
+      AccountList:
+        default: 'AccountList: *Only lowercase alphanumeric characters and commas are allowed. Please do not use spaces to separate words.' 
+      Stack:
+        default: 'Stack: *Only lowercase alphanumeric characters and hyphens are allowed.'
+      Owner:
+        default: 'Owner: *Only lowercase alphanumeric characters and hyphens are allowed. Please put a hyphen between your first name and last name.'
+
+Parameters:
+  AccountList:
+    Description: Enter the CommaDelimitedList of the account names within a multi-account environment.
+    Type: String
+    Default: root,ezapp,operation,sandbox,mailserver
+    AllowedPattern: ^([a-z]([\-]{0,1}[a-z0-9]+)*)([,][a-z]([\-]{0,1}[a-z0-9]+)*)*$
+    ConstraintDescription: This Parameter must match pattern ^([a-z]([\-]{0,1}[a-z0-9]+)*)([,][a-z]([\-]{0,1}[a-z0-9]+)*)*$
+    
+  AccountName:
+    Description: Specify the Name of the account to deploy this stack.
+    Type: String
+    Default: root
+    AllowedValues:
+      - root
+
+  Env:
+    Description: Specify the Env Tag. 
+    Type: String
+    Default: common
+    AllowedValues:
+      - prod
+      - stage
+      - test
+      - dev
+      - common
+
+  Stack:
+    Description: Specify the Stack Tag.
+    Type: String
+    Default: infra
+    AllowedPattern: ^[a-z]([\-]{0,1}[a-z0-9]+)*$
+    ConstraintDescription: This Parameter must match pattern ^[a-z]([\-]{0.1}[a-z0-9]+)*$
+
+  Owner:
+    Description: Enter the name of the person creating this stack.
+    Type: String
+    Default: masaki-ishimoto
+    AllowedPattern: ^[a-z]([\-]{0,1}[a-z0-9]+)*$
+    ConstraintDescription: This Parameter must match pattern ^[a-z]([\-]{0.1}[a-z0-9]+)*$
+
+Conditions:
+  CreateSsmParamAccList:
+    !Not [!Equals  ['', !Ref AccountList]]
+  CreateSsmParamAccIdForRoot:
+    !Not [!Equals ['', !FindInMap [AccountMap, root, ID]]]
+  CreateSsmParamAccIdForEzapp:
+    !Not [!Equals ['', !FindInMap [AccountMap, ezapp, ID]]]
+  CreateSsmParamAccIdForOperation:
+    !Not [!Equals ['', !FindInMap [AccountMap, operation, ID]]]
+  CreateSsmParamAccIdForSandbox:
+    !Not [!Equals ['', !FindInMap [AccountMap, sandbox, ID]]]
+  CreateSsmParamAccIdForMailserver:
+    !Not [!Equals ['', !FindInMap [AccountMap, mailserver, ID]]]
+
+Resources: 
+#------------------------------------#
+# SSM Parameter
+#------------------------------------#
+  SsmParamAccList:
+    Condition: CreateSsmParamAccList
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /${AccountName}-${AWS::AccountId}/accountname/list
+      Type: StringList
+      Value: !Ref AccountList
+      Tags:
+        Env: !Ref Env
+        Stack: !Ref Stack
+        Owner: !Ref Owner
+        Cost: !Sub ${Env}-${Stack}
+
+  SsmParamAccIdForRoot:
+    Condition: CreateSsmParamAccIdForRoot
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /${AccountName}-${AWS::AccountId}/accountid/root
+        # - /test/${Tmp}/${Stack}/sso/accountid/root
+        # - { Tmp: !Select [ '0', ['{{resolve:ssm:/577787435504-root/multi-account-infra/sso/account/namelist}}'] ] }
+      Type: String
+      Value: !FindInMap [AccountMap, root, ID]
+      Tags:
+        Env: !Ref Env
+        Stack: !Ref Stack
+        Owner: !Ref Owner
+        Cost: !Sub ${Env}-${Stack}
+
+  SsmParamAccIdForEzapp:
+    Condition: CreateSsmParamAccIdForEzapp
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /${AccountName}-${AWS::AccountId}/accountid/ezapp
+      Type: String
+      Value: !FindInMap [AccountMap, ezapp, ID]
+      Tags:
+        Env: !Ref Env
+        Stack: !Ref Stack
+        Owner: !Ref Owner
+        Cost: !Sub ${Env}-${Stack}
+
+  SsmParamAccIdForOperation:
+    Condition: CreateSsmParamAccIdForOperation
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /${AccountName}-${AWS::AccountId}/accountid/operation
+      Type: String
+      Value: !FindInMap [AccountMap, operation, ID]
+      Tags:
+        Env: !Ref Env
+        Stack: !Ref Stack
+        Owner: !Ref Owner
+        Cost: !Sub ${Env}-${Stack}
+
+  SsmParamAccIdForSandbox:
+    Condition: CreateSsmParamAccIdForSandbox
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /${AccountName}-${AWS::AccountId}/accountid/sandbox
+      Type: String
+      Value: !FindInMap [AccountMap, sandbox, ID]
+      Tags:
+        Env: !Ref Env
+        Stack: !Ref Stack
+        Owner: !Ref Owner
+        Cost: !Sub ${Env}-${Stack}
+
+  SsmParamAccIdForMailserver:
+    Condition: CreateSsmParamAccIdForMailserver
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /${AccountName}-${AWS::AccountId}/accountid/mailserver
+      Type: String
+      Value: !FindInMap [AccountMap, mailserver, ID]
+      Tags:
+        Env: !Ref Env
+        Stack: !Ref Stack
+        Owner: !Ref Owner
+        Cost: !Sub ${Env}-${Stack}

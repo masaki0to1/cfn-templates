@@ -1,0 +1,239 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Create Cloud9 Environment.
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - 
+        Label:
+          default: System Configuration
+        Parameters:
+          - Env
+          - Stack
+          - Owner
+      - 
+        Label:
+          default: Instance Configuration
+        Parameters:
+          - InstanceType
+          - InstanceImage
+      - 
+        Label:
+          default: Cloud9 Configuration
+        Parameters:
+          - CreateC9
+          - C9EnvName
+
+    ParameterLabels:
+      Stack:
+        default: 'Stack: *Only lowercase alphanumeric characters and hyphens are allowed.'
+      Owner:
+        default: 'Owner: *Only lowercase alphanumeric characters and hyphens are allowed. Please put a hyphen between your first name and last name.'
+        
+Mappings:
+  DistroToAMIID:
+    Linux:
+      AmazonLinux1: amazonlinux-1-x86_64
+      AmazonLinux2: amazonlinux-2-x86_64
+      Ubuntu18: ubuntu-18.04-x86_64
+
+  DistroToSSMPath:
+    Linux:
+      AmazonLinux1: resolve:ssm:/aws/service/cloud9/amis/amazonlinux-1-x86_64
+      AmazonLinux2: resolve:ssm:/aws/service/cloud9/amis/amazonlinux-2-x86_64
+      Ubuntu18: resolve:ssm:/aws/service/cloud9/amis/ubuntu-18.04-x86_64
+
+Parameters:
+  Env:
+    Description: Specify the Env Tag. 
+    Type: String
+    Default: common
+    AllowedValues:
+      - prod
+      - stage
+      - test
+      - dev
+      - common
+
+  Stack:
+    Description: Specify the Stack Tag.
+    Type: String
+    Default: infra
+    AllowedPattern: ^[a-z]([\-]{0,1}[a-z0-9]+)*$
+    ConstraintDescription: This Parameter must match pattern ^[a-z]([\-]{0.1}[a-z0-9]+)*$
+
+  Owner:
+    Description: Enter the name of the person creating this stack.
+    Type: String
+    Default: masaki-ishimoto
+    AllowedPattern: ^[a-z]([\-]{0,1}[a-z0-9]+)*$
+    ConstraintDescription: This Parameter must match pattern ^[a-z]([\-]{0.1}[a-z0-9]+)*$
+
+  InstanceType:
+    Description: Instance Type for Cloud9 
+    Type: String
+    Default: t2.micro
+
+  InstanceImage:
+    Description: Instance Image Distribution for Cloud9 
+    Type: String
+    Default: AmazonLinux2
+    AllowedValues:
+      - AmazonLinux1
+      - AmazonLinux2
+      - Ubuntu18
+
+  # CreateC9:
+  #   Description: Flag whether to create Cloud9.
+  #   Type: String
+  #   Default: true
+  #   AllowedValues:
+  #     - true
+  #     - false
+
+  C9EnvName:
+    Description: Enter the Name of Cloud9Environment. This will appear on your environment's card in your dashboard. Environment names need to be unique for a user.
+    Type: String
+    Default: c9env 
+  # ImportStack1:
+  #   Description: The Name of the Import stack name.
+  #   Type: String
+  # ImportStack2:
+  #   Description: The Name of the Import stack name.
+  #   Type: String
+
+# Conditions:
+#   CreateC9:
+#     !Equals ['true', !Ref CreateC9]
+
+Resources: 
+#--------------------------------------------------#
+# IAM Role
+#--------------------------------------------------#
+# RoleNameプロパティを 'AWSCloud9SSMAccessRole' にしないとClient Error 発生する
+  RoleForC9:
+    Type: AWS::IAM::Role
+    Properties: 
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+              - cloud9.amazonaws.com
+              - ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Description: Service linked role for AWS Cloud9
+      Path: /service-role/
+      ManagedPolicyArns: 
+        - arn:aws:iam::aws:policy/AWSCloud9SSMInstanceProfile
+      RoleName: AWSCloud9SSMAccessRole
+
+#--------------------------------------------------#
+# IAM InstanceProfile
+#--------------------------------------------------#
+# InstanceProfileNameプロパティを 'AWSCloud9SSMInstanceProfile' にしないと Client Error が発生する
+  InstanceProfileForC9:
+    Type: AWS::IAM::InstanceProfile
+    Properties: 
+      InstanceProfileName: AWSCloud9SSMInstanceProfile
+      Path: /cloud9/
+      Roles: 
+        - 
+          Ref: RoleForC9
+
+  # AWSCloud9SSMAccessRole:
+  #   Type: AWS::IAM::Role
+  #   Properties: 
+  #     AssumeRolePolicyDocument:
+  #       Version: 2012-10-17
+  #       Statement:
+  #         - Effect: Allow
+  #           Principal:
+  #             Service:
+  #             - cloud9.amazonaws.com
+  #             - ec2.amazonaws.com
+  #           Action:
+  #             - 'sts:AssumeRole'
+  #     Description: 'Service linked role for AWS Cloud9'
+  #     Path: '/service-role/'
+  #     ManagedPolicyArns: 
+  #       - arn:aws:iam::aws:policy/AWSCloud9SSMInstanceProfile
+  #     RoleName: 'AWSCloud9SSMAccessRole'
+
+  # AWSCloud9SSMInstanceProfile:
+  #   Type: 'AWS::IAM::InstanceProfile'
+  #   Properties: 
+  #     InstanceProfileName: AWSCloud9SSMInstanceProfile
+  #     Path: '/cloud9/'
+  #     Roles: 
+  #       - 
+  #         Ref: AWSCloud9SSMAccessRole
+
+#--------------------------------------------------#
+# Cloud9 Environment
+#--------------------------------------------------#
+  Cloud9:
+    DependsOn:
+      # - AWSCloud9SSMAccessRole
+      - InstanceProfileForC9
+    # Condition: CreateC9
+    Type: AWS::Cloud9::EnvironmentEC2
+    Properties: 
+      AutomaticStopTimeMinutes: 30
+      ConnectionType: CONNECT_SSM
+      Description: Cloud9 environment for Remote SSH connection from VSCode via SSM.
+      ImageId: !FindInMap [DistroToSSMPath, Linux, !Ref InstanceImage]
+      InstanceType: !Ref InstanceType
+      Name: !Ref C9EnvName  
+      # Repositories:
+      #   - PathComponent: !Sub 
+      #     - /home/ec2-user/environment/${RepositoryName}
+      #     - RepositoryName:
+      #         Fn::ImportValue:
+      #           !Sub ${ImportStack1}-name
+      #     RepositoryUrl: 
+      #       Fn::ImportValue:
+      #         !Sub ${ImportStack1}-url
+              
+      #   - PathComponent: !Sub 
+      #     - /home/ec2-user/environment/${RepositoryName}
+      #     - RepositoryName:
+      #         Fn::ImportValue:
+      #           !Sub ${ImportStack2}-name
+      #     RepositoryUrl: 
+      #       Fn::ImportValue:
+      #         !Sub ${ImportStack2}-url
+      Tags: 
+        - Key: Env
+          Value: !Ref Env
+        - Key: Stack
+          Value: !Ref Stack
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: Cost
+          Value: !Sub ${Env}-${Stack}
+
+#--------------------------------------------------#
+# SSM Parameter Store
+#--------------------------------------------------#
+  SsmParamC9Url:
+    # Condition: CreateC9
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /cloud9/url
+      Type: String
+      Value: !Sub https://${AWS::Region}.console.aws.amazon.com/ec2/v2/home?region=${AWS::Region}#Instances:search=${Cloud9};sort=tag:Name
+      Tags:
+        Env: !Ref Env
+        Stack: !Ref Stack
+        Owner: !Ref Owner
+        Cost: !Sub ${Env}-${Stack}
+
+# Outputs:
+#   Cloud9Instance:
+#     Description: The URL of EC2 instance powering this AWS CLoud9 environment
+#     Value: !Sub https://${AWS::Region}.console.aws.amazon.com/ec2/v2/home?region=${AWS::Region}#Instances:search=${Cloud9};sort=tag:Name
+#     Export:
+#       Name: !Sub ${AWS::StackName}-instance-url

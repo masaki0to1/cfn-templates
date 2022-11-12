@@ -1,0 +1,95 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Provision Hosted Zone.
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - 
+        Label:
+          default: System Configuration
+        Parameters:
+          - Env
+          - Stack
+          - Owner
+      -
+        Label:
+          default: Domain Configuration
+        Parameters:
+          - DomainName
+          - SubDomainName
+
+    ParameterLabels:
+      Stack:
+        default: 'Stack: *Only lowercase alphanumeric characters and hyphens are allowed.'
+      Owner:
+        default: 'Owner: *Only lowercase alphanumeric characters and hyphens are allowed. Please put a hyphen between your first name and last name.'
+
+Parameters:
+  Env:
+    Description: Specify the Env Tag. 
+    Type: String
+    Default: prod
+    AllowedValues:
+      - prod
+      - stage
+      - test
+      - dev
+      - common
+
+  Stack:
+    Description: Specify the Stack Tag.
+    Type: String
+    Default: ezapp
+    AllowedPattern: ^[a-z]([\-]{0,1}[a-z0-9]+)*$
+    ConstraintDescription: This Parameter must match pattern ^[a-z]([\-]{0.1}[a-z0-9]+)*$
+
+  Owner:
+    Description: Enter the name of the person creating this stack.
+    Type: String
+    Default: masaki-ishimoto
+    AllowedPattern: ^[a-z]([\-]{0,1}[a-z0-9]+)*$
+    ConstraintDescription: This Parameter must match pattern ^[a-z]([\-]{0.1}[a-z0-9]+)*$
+
+  DomainName:
+    Description: Enter the Domain Name.
+    Type: String
+    Default: and-code.jp
+
+Resources: 
+#---------------------------------------------#
+# Route 53 HostedZone
+#---------------------------------------------#
+  HostedZone: 
+    Type: AWS::Route53::HostedZone
+    Properties: 
+      HostedZoneConfig: 
+        Comment: !Sub My hosted zone for ${DomainName}
+      Name: !Ref DomainName
+
+#---------------------------------------------#
+# SSM Parameter Store
+#---------------------------------------------#
+# For Domain
+  SsmParamDomainName:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /route53/domain/name
+      Type: String
+      Value: !Ref DomainName
+      Tags:
+        Env: !Ref Env
+        Stack: !Ref Stack
+        Owner: !Ref Owner
+        Name: !Sub ${Env}-${Stack}
+
+  SsmParamHostedZoneIdForDomain:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /route53/domain/hostedzoneid
+      Type: String
+      Value: !Ref HostedZone
+      Tags:
+        Env: !Ref Env
+        Stack: !Ref Stack
+        Owner: !Ref Owner
+        Name: !Sub ${Env}-${Stack}

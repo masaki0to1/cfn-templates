@@ -1,0 +1,35 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: ---
+Metadata: 
+
+Parameters: 
+  S3BucketName:
+    Description: 
+    Type: String
+    Default: notification-bucket
+Mappings: 
+
+Conditions: 
+
+Resources: 
+s3Bucket:
+  Type: AWS::S3::Bucket
+  Properties: 
+    BucketName: !Sub ${S3BucketName}-${AWS::AccountId}
+    NotificationConfiguration: 
+      NotificationConfiguration
+    ObjectLockConfiguration: 
+      ObjectLockConfiguration
+    ObjectLockEnabled: Boolean
+    OwnershipControls: 
+      OwnershipControls
+    PublicAccessBlockConfiguration: 
+      PublicAccessBlockConfiguration
+    ReplicationConfiguration: 
+      ReplicationConfiguration
+    Tags: 
+      - Tag
+    VersioningConfiguration: 
+      VersioningConfiguration
+    WebsiteConfiguration: 
+      WebsiteConfiguration

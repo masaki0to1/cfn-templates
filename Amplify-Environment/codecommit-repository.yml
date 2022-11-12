@@ -1,0 +1,115 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - 
+        Label:
+          default: System Configuration
+        Parameters:
+          - Env
+          - Stack
+          - Owner
+      -
+        Label:
+          default: CodeCommit Configuration
+        Parameters:
+          - RepositoryName
+
+    ParameterLabels:
+      Stack:
+        default: 'Stack: *Only lowercase alphanumeric characters and hyphens are allowed.'
+      Owner:
+        default: 'Owner: *Only lowercase alphanumeric characters and hyphens are allowed. Please put a hyphen between your first name and last name.'
+
+#--------------------------------------------------#
+# Input Parameters
+#--------------------------------------------------#
+Parameters:
+  Env:
+    Description: Specify the Env Tag. 
+    Type: String
+    Default: prod
+    AllowedValues:
+      - prod
+      - stage
+      - test
+      - dev
+      - common
+
+  Stack:
+    Description: Specify the Stack Tag.
+    Type: String
+    Default: ezapp
+    AllowedPattern: ^[a-z]([\-]{0,1}[a-z0-9]+)*$
+    ConstraintDescription: This Parameter must match pattern ^[a-z]([\-]{0.1}[a-z0-9]+)*$
+
+  Owner:
+    Description: Enter the name of the person creating this stack.
+    Type: String
+    Default: masaki-ishimoto
+    AllowedPattern: ^[a-z]([\-]{0,1}[a-z0-9]+)*$
+    ConstraintDescription: This Parameter must match pattern ^[a-z]([\-]{0.1}[a-z0-9]+)*$
+
+  RepositoryName:
+    Description: Enter the Repository name.
+    Type: String
+
+Resources:
+#--------------------------------------------------#
+# CodeCommit Repository
+#--------------------------------------------------#
+  CodeCommitRepo:
+    Type: AWS::CodeCommit::Repository
+    Properties:
+      RepositoryDescription: !Sub CodeCommit repository for ${RepositoryName}
+      RepositoryName: !Sub ${RepositoryName}
+      Tags: 
+        - Key: Env
+          Value: !Ref Env
+        - Key: Stack
+          Value: !Ref Stack
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: Cost
+          Value: !Sub ${Env}-${Stack}
+
+#--------------------------------------------------#
+# SSM Parameter Store
+#--------------------------------------------------#
+  SsmParamCodeCommitRepoHttpUrl:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub '/codecommit/${RepositoryName}/httpurl'
+      Type: String
+      Value: !GetAtt CodeCommitRepo.CloneUrlHttp
+      Tags:
+        Env: !Ref Env
+        Stack: !Ref Stack
+        Owner: !Ref Owner
+        Cost: !Sub ${Env}-${Stack}
+
+  SsmParamCodeCommitRepoArn:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub '/codecommit/${RepositoryName}/arn'
+      Type: String
+      Value: !GetAtt CodeCommitRepo.Arn
+      Tags:
+        Env: !Ref Env
+        Stack: !Ref Stack
+        Owner: !Ref Owner
+        Cost: !Sub ${Env}-${Stack}
+
+  SsmParamCodeCommitRepoName:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub '/codecommit/${RepositoryName}/name'
+      Type: String
+      Value: !GetAtt CodeCommitRepo.Name
+      Tags:
+        Env: !Ref Env
+        Stack: !Ref Stack
+        Owner: !Ref Owner
+        Cost: !Sub ${Env}-${Stack}
+      

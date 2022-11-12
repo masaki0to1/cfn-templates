@@ -1,0 +1,120 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Provision ACM Certificate. 
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - 
+        Label:
+          default: System Configuration
+        Parameters:
+          - Env
+          - Stack
+          - Owner
+      -
+        Label:
+          default: Route53 Configuration
+        Parameters:
+          - DomainName
+          - HostedZoneId
+
+    ParameterLabels:
+      Stack:
+        default: 'Stack: *Only lowercase alphanumeric characters and hyphens are allowed.'
+      Owner:
+        default: 'Owner: *Only lowercase alphanumeric characters and hyphens are allowed. Please put a hyphen between your first name and last name.'
+
+      # -
+      #   Label:
+      #     default: SSM Key Configuration
+      #   Parameters:
+      #     - KeyOfDomainName
+      #     - KeyOfHostedZoneId
+
+Parameters:
+  Env:
+    Description: Specify the Env Tag. 
+    Type: String
+    Default: prod
+    AllowedValues:
+      - prod
+      - stage
+      - test
+      - dev
+      - common
+
+  Stack:
+    Description: Specify the Stack Tag.
+    Type: String
+    Default: ezapp
+    AllowedPattern: ^[a-z]([\-]{0,1}[a-z0-9]+)*$
+    ConstraintDescription: This Parameter must match pattern ^[a-z]([\-]{0.1}[a-z0-9]+)*$
+
+  Owner:
+    Description: Enter the name of the person creating this stack.
+    Type: String
+    Default: masaki-ishimoto
+    AllowedPattern: ^[a-z]([\-]{0,1}[a-z0-9]+)*$
+    ConstraintDescription: This Parameter must match pattern ^[a-z]([\-]{0.1}[a-z0-9]+)*$
+
+# リージョンを跨ぐのでSSM Keyではなく、直接値を渡す   
+
+  DomainName:
+    Description: Enter the Domain Name.
+    Type: String
+    Default: and-code.jp
+
+  HostedZoneId:
+    Description: Enter the Hosted Zone ID.
+    Type: String
+    Default: Z03130571CU9MZ9G2605A
+
+  # KeyOfDomainName:
+  #   Description: Specify the SSM Key of the domain name.
+  #   Type: AWS::SSM::Parameter::Name
+  #   Default: route53/domain/name
+  
+  # KeyOfHostedZoneId:
+  #   Description: Specify the SSM Key of the HostedZone ID.
+  #   Type: AWS::SSM::Parameter::Name
+  #   Default: route53/domain/hostedzoneid
+
+Resources:
+#-----------------------------------------------------------------#
+# ACM
+#-----------------------------------------------------------------#
+  CertificateForDomain:
+    Type: AWS::CertificateManager::Certificate
+    Properties: 
+      DomainName: !Ref DomainName
+      DomainValidationOptions: 
+        - DomainName: !Ref DomainName
+          HostedZoneId: !Ref HostedZoneId
+      ValidationMethod: DNS
+      Tags: 
+        - Key: Env
+          Value: !Ref Env
+        - Key: Stack
+          Value: !Ref Stack
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: Cost
+          Value: !Sub ${Env}-${Stack}
+
+  CertificateForSubDomain:
+    Type: AWS::CertificateManager::Certificate
+    Properties: 
+      DomainName: !Sub '*.${DomainName}'
+      DomainValidationOptions: 
+        - DomainName: !Sub '*.${DomainName}'
+          HostedZoneId: !Ref HostedZoneId
+      ValidationMethod: DNS
+      Tags: 
+        - Key: Env
+          Value: !Ref Env
+        - Key: Stack
+          Value: !Ref Stack
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: Cost
+          Value: !Sub ${Env}-${Stack}

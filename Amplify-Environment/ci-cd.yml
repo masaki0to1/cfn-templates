@@ -1,0 +1,598 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - 
+        Label:
+          default: System Configuration
+        Parameters:
+          - Env
+          - Stack
+          - Service
+          - Owner
+      - 
+        Label:
+          default: SSM Paramter Store Key Configuration
+        Parameters:
+          - SsmKeyCodeCommitRepoName
+          - SsmKeyCodeCommitRepoArn
+          - SsmKeyCodeCommitRepoHttpUrl
+          - SsmKeyArtifactBucketName
+          - SsmKeyAppBucketName
+          - SsmKeyLogsBucketName
+          - SsmKeyCloudFrontDistributionId
+
+    ParameterLabels:
+      Stack:
+        default: 'Stack: *Only lowercase alphanumeric characters and hyphens are allowed.'
+      Service:
+        default: 'Service: *Only lowercase alphanumeric characters and hyphens are allowed.'
+      Owner:
+        default: 'Owner: *Only lowercase alphanumeric characters and hyphens are allowed. Please put a hyphen between your first name and last name.'
+        
+#---------------------------------------------------------#
+# Input Parameters
+#---------------------------------------------------------#
+Parameters:
+  Env:
+    Description: Specify the Env Tag. 
+    Type: String
+    Default: prod
+    AllowedValues:
+      - prod
+      - stage
+      - test
+      - dev
+      - common
+
+  Stack:
+    Description: Specify the Stack Tag.
+    Type: String
+    Default: ezapp
+    AllowedPattern: ^[a-z]([\-]{0,1}[a-z0-9]+)*$
+    ConstraintDescription: This Parameter must match pattern ^[a-z]([\-]{0.1}[a-z0-9]+)*$
+
+  Service:
+    Description: Enter the Service Name.
+    Type: String
+    Default: ezapp
+    AllowedPattern: ^[a-z]([\-]{0,1}[a-z0-9]+)*$
+    ConstraintDescription: This Parameter must match pattern ^[a-z]([\-]{0.1}[a-z0-9]+)*$
+
+  Owner:
+    Description: Enter the name of the person creating this stack.
+    Type: String
+    Default: masaki-ishimoto
+    AllowedPattern: ^[a-z]([\-]{0,1}[a-z0-9]+)*$
+    ConstraintDescription: This Parameter must match pattern ^[a-z]([\-]{0.1}[a-z0-9]+)*$
+
+  SsmKeyCodeCommitRepoName:
+    Description: Specify the SSM Parameter Key for Name of CodeCommit Repository.
+    Type: AWS::SSM::Parameter::Name
+    Default: /codecommit/ezapp/name
+
+  SsmKeyCodeCommitRepoArn:
+    Description: Specify the SSM Parameter Key for ARN of CodeCommit Repository.
+    Type: AWS::SSM::Parameter::Name
+    Default: /codecommit/ezapp/arn
+
+  SsmKeyCodeCommitRepoHttpUrl:
+    Description: Specify the SSM Parameter Key for Http URL of CodeCommit Repository.
+    Type: AWS::SSM::Parameter::Name
+    Default: /codecommit/ezapp/httpurl
+
+  SsmKeyArtifactBucketName:
+    Description: Specify the SSM Parameter Key for Name of S3ArtifactBucket.
+    Type: AWS::SSM::Parameter::Name
+    Default: /s3/artifact-bucket/name
+
+  SsmKeyAppBucketName:
+    Description: Specify the SSM Parameter Key for Name of S3AppBucket.
+    Type: AWS::SSM::Parameter::Name
+    Default: /s3/app-bucket/name
+
+  SsmKeyLogsBucketName:
+    Description: Specify the SSM Parameter Key for Name of S3LogsBucket.
+    Type: AWS::SSM::Parameter::Name
+    Default: /s3/logs-bucket/name
+
+  SsmKeyCloudFrontDistributionId:
+    Description: Specify the SSM Parameter Key for ID of CloudFront Distribution.
+    Type: AWS::SSM::Parameter::Name
+    Default: /cloudfront/distribution/id
+
+Resources:
+# ------------------------------------------------------------#
+# CodePipeline
+# ------------------------------------------------------------#
+  CodePipelineApp:
+    Type: AWS::CodePipeline::Pipeline
+    DependsOn:
+      - CodePipelineServiceRoleApp
+      - CodeBuildProjectApp
+      - LambdaCfInvalidationInCp
+    Properties:
+      Name: !Sub ${Service}-app
+      ArtifactStore:
+        Location: !Sub '{{resolve:ssm:${SsmKeyArtifactBucketName}}}'
+        Type: S3
+      RestartExecutionOnUpdate: false
+      RoleArn: !GetAtt CodePipelineServiceRoleApp.Arn
+      Stages:
+        - Name: Source
+          Actions:
+            - Name: Source
+              RunOrder: 1
+              ActionTypeId:
+                Category: Source
+                Owner: AWS
+                Provider: CodeCommit
+                Version: 1
+              Configuration:
+                RepositoryName: !Sub '{{resolve:ssm:${SsmKeyCodeCommitRepoName}}}'
+                BranchName: main
+                PollForSourceChanges: false
+                OutputArtifactFormat: CODEBUILD_CLONE_REF
+              Namespace: SourceVariables
+              OutputArtifacts:
+                - Name: Source
+        - Name: Build
+          Actions:
+            - Name: Build
+              RunOrder: 1
+              Region: !Sub ${AWS::Region}
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: 1
+              Configuration:
+                ProjectName: !Ref CodeBuildProjectApp
+                BatchEnabled: false
+              Namespace: BuildVariables
+              InputArtifacts:
+                - Name: Source
+              OutputArtifacts:
+                - Name: Build
+        - Name: Deploy
+          Actions:
+            - Name: Deploy
+              RunOrder: 1
+              Region: !Sub ${AWS::Region}
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Provider: S3
+                Version: 1
+              Configuration:
+                BucketName: !Sub '{{resolve:ssm:${SsmKeyAppBucketName}}}'
+                Extract: true
+              Namespace: DeployVariables
+              InputArtifacts:
+                - Name: Build
+        - Name: CloudFrontInvalidation
+          Actions:
+            - Name: Invalidate
+              RunOrder: 1
+              Region: !Sub ${AWS::Region}
+              ActionTypeId:
+                Category: Invoke
+                Owner: AWS
+                Provider: Lambda
+                Version: 1
+              Configuration:
+                FunctionName: !Ref LambdaCfInvalidationInCp
+      Tags: 
+        - Key: Env
+          Value: !Ref Env
+        - Key: Stack
+          Value: !Ref Stack
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: Cost
+          Value: !Sub ${Env}-${Stack}
+
+# ------------------------------------------------------------#
+# IAM Role for CodePipeline Service
+# ------------------------------------------------------------#
+  CodePipelineServiceRoleApp:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub codepipeline-servicerole-${Service}
+      Description: This role allows CodePipeline to call each stages.
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+              - codepipeline.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: /
+      Policies:
+        - PolicyName: !Sub codepipeline-servicerole-policy-${Service}
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - codecommit:CancelUploadArchive
+                  - codecommit:GetBranch
+                  - codecommit:GetCommit
+                  - codecommit:GetRepository
+                  - codecommit:GetUploadArchiveStatus
+                  - codecommit:UploadArchive
+                Resource: !Sub '{{resolve:ssm:${SsmKeyCodeCommitRepoArn}}}'
+              - Effect: Allow
+                Action:
+                  - codebuild:BatchGetBuilds
+                  - codebuild:StartBuild
+                  - codebuild:BatchGetBuildBatches
+                  - codebuild:StartBuildBatch
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - 'cloudwatch:*'
+                  - 's3:*'
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                  - lambda:ListFunctions
+                Resource: '*'
+
+# ------------------------------------------------------------#
+# EventBridge Rule for Starting CodePipeline
+# ------------------------------------------------------------#
+  EventBridgeRuleStartCpApp:
+    Type: AWS::Events::Rule
+    DependsOn:
+      - EventBridgeRuleStartCpRole
+    Properties:
+      Name: !Sub rule-start-codepipeline-${Service}
+      Description: !Sub This rule starts CodePipeline for ${Service} app when its source code in CodeCommit is changed.
+      EventBusName: !Sub arn:aws:events:${AWS::Region}:${AWS::AccountId}:event-bus/default
+      EventPattern:
+        source:
+          - aws.codecommit
+        detail-type:
+          - 'CodeCommit Repository State Change'
+        resources:
+          - !Sub '{{resolve:ssm:${SsmKeyCodeCommitRepoArn}}}'
+        detail:
+          event:
+            - referenceCreated
+            - referenceUpdated
+          referenceType:
+            - branch
+          referenceName:
+            - main
+      RoleArn: !GetAtt EventBridgeRuleStartCpRole.Arn
+      State: ENABLED
+      Targets:
+        - Arn: !Sub arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:${CodePipelineApp}
+          Id: !Sub Target-CodePipelineApp-${Service}
+          RoleArn: !GetAtt EventBridgeRuleStartCpRole.Arn
+
+# ------------------------------------------------------------#
+# IAM Role for EventBridge Rule
+# ------------------------------------------------------------#
+  EventBridgeRuleStartCpRole:
+    Type: AWS::IAM::Role
+    DependsOn:
+      - CodePipelineApp
+    Properties:
+      RoleName: !Sub eventbridge-rule-start-codepipeline-servicerole-${Service}
+      Description: !Sub This role allows EventBridge to start ${Service} app CodePipeline.
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+              - events.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: /
+      Policies:
+        - PolicyName: !Sub eventbridge-rule-start-codepipeline-servicerole-policy-${Service}
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - codepipeline:StartPipelineExecution
+                Resource:
+                  - !Sub arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:${CodePipelineApp}
+
+# ------------------------------------------------------------#
+# CodeBuild Project
+# ------------------------------------------------------------#
+  CodeBuildProjectApp:
+    Type: AWS::CodeBuild::Project
+    DependsOn:
+      - CodeBuildResourceAccessRole
+      - CodeBuildServiceRole
+    Properties:
+      Name: !Sub ${Service}-buildproject
+      Description: !Sub The build project for ${Service} App.
+      ResourceAccessRole: !GetAtt CodeBuildResourceAccessRole.Arn
+      ServiceRole: !GetAtt CodeBuildServiceRole.Arn
+      ConcurrentBuildLimit: 1
+      Visibility: PRIVATE
+      Source:
+        Type: CODECOMMIT
+        Location: !Sub '{{resolve:ssm:${SsmKeyCodeCommitRepoHttpUrl}}}'
+        GitCloneDepth: 1
+        GitSubmodulesConfig:
+          FetchSubmodules: false
+      SourceVersion: refs/heads/main
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/standard:5.0
+        ImagePullCredentialsType: CODEBUILD
+        PrivilegedMode: false
+      TimeoutInMinutes: 30
+      QueuedTimeoutInMinutes: 60
+      Artifacts:
+        Type: S3
+        Location: !Sub '{{resolve:ssm:${SsmKeyArtifactBucketName}}}'
+        Name: artifact.zip
+        OverrideArtifactName: false
+        NamespaceType: NONE
+        Packaging: ZIP
+        EncryptionDisabled: true
+      Cache:
+        Type: NO_CACHE
+      LogsConfig:
+        CloudWatchLogs:
+          GroupName: !Sub /aws/codebuild/${Service}
+          Status: ENABLED
+        S3Logs:
+          EncryptionDisabled: true
+          Location: !Sub '{{resolve:ssm:${SsmKeyLogsBucketName}}}/codebuildBuildlog'
+          Status: ENABLED
+      Tags: 
+        - Key: Env
+          Value: !Ref Env
+        - Key: Stack
+          Value: !Ref Stack
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: Cost
+          Value: !Sub ${Env}-${Stack}
+
+# ------------------------------------------------------------#
+# IAM Role for CodeBuild Resource Access
+# ------------------------------------------------------------#
+  CodeBuildResourceAccessRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub codebuild-resource-access-role-${Service}
+      Description: This role allows CodeBuild to access CloudWatch Logs and Amazon S3 artifacts for the project's builds.
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+              - codebuild.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: /
+      Policies:
+        - PolicyName: !Sub codebuild-resource-access-role-policy-${Service}
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${Service}
+                  - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${Service}:*'
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                  - s3:GetBucketAcl
+                  - s3:GetBucketLocation
+                Resource:
+                  - !Sub 'arn:aws:s3:::{{resolve:ssm:${SsmKeyLogsBucketName}}}'
+                  - !Sub 'arn:aws:s3:::{{resolve:ssm:${SsmKeyLogsBucketName}}}/*'
+
+# ------------------------------------------------------------#
+# IAM Role for CodeBuild Service
+# ------------------------------------------------------------#
+  CodeBuildServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub codebuilde-servicerole-${Service}
+      Description: This role allows CodeBuild to interact with dependant AWS services.
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+              - codebuild.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: /
+      Policies:
+        - PolicyName: !Sub codebuilde-servicerole-policy-${Service}
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - codecommit:GitPull
+                Resource: !Sub '{{resolve:ssm:${SsmKeyCodeCommitRepoArn}}}'
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameters
+                Resource:
+                  - !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/*'
+              - Effect: Allow
+                Action:
+                  - 's3:*'
+                Resource:
+                  - !Sub 'arn:aws:s3:::{{resolve:ssm:${SsmKeyArtifactBucketName}}}'
+                  - !Sub 'arn:aws:s3:::{{resolve:ssm:${SsmKeyArtifactBucketName}}}/*'
+                  - !Sub 'arn:aws:s3:::{{resolve:ssm:${SsmKeyLogsBucketName}}}'
+                  - !Sub 'arn:aws:s3:::{{resolve:ssm:${SsmKeyLogsBucketName}}}/*'
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${Service}
+                  - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${Service}:*'
+              - Effect: Allow
+                Action:
+                  - codebuild:CreateReportGroup
+                  - codebuild:CreateReport
+                  - codebuild:UpdateReport
+                  - codebuild:BatchPutTestCases
+                  - codebuild:BatchPutCodeCoverages
+                Resource:
+                  - !Sub 'arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:report-group/${Service}*'
+
+# ------------------------------------------------------------#
+# Lambda
+# ------------------------------------------------------------#
+  LambdaCfInvalidationInCp:
+    Type: AWS::Lambda::Function
+    DependsOn:
+      - LambdaCfCpInvocationRole
+    Properties:
+      FunctionName: !Sub cloudfront-invalidation-invocation-codepipeline-${Service}
+      Description: !Sub Lambda Function to clear cache of the CloudFront distribution, called from CodePipeline.
+      Runtime: python3.9
+      Timeout: 180
+      MemorySize: 128
+      Role: !GetAtt LambdaCfCpInvocationRole.Arn
+      Handler: index.lambda_handler
+      Tags: 
+        - Key: Env
+          Value: !Ref Env
+        - Key: Stack
+          Value: !Ref Stack
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: Cost
+          Value: !Sub ${Env}-${Stack}
+      Code:
+        ZipFile: !Sub |
+          import boto3
+          import json
+          import time
+          codepipeline = boto3.client('codepipeline')
+          cloudfront = boto3.client('cloudfront')
+          def put_job_success(job):
+            print('Putting job success')
+            codepipeline.put_job_success_result(jobId=job)
+          def put_job_failure(job, message):
+            print('Putting job failure')
+            print(message)
+            codepipeline.put_job_failure_result(jobId=job, failureDetails={'message': message, 'type': 'JobFailed'})
+          def continue_job_later(job, invalidation_id):
+            continuation_token = json.dumps({'InvalidationId': invalidation_id})
+            print('Putting job continuation')
+            codepipeline.put_job_success_result(jobId=job, continuationToken=continuation_token)
+          def lambda_handler(event, context):
+            try:
+              # Retrieve the accepted data from CodePipeline
+              job_id = event['CodePipeline.job']['id']
+              job_data = event['CodePipeline.job']['data']
+              distribution_id = '{{resolve:ssm:${SsmKeyCloudFrontDistributionId}}}'
+              # Invalidate
+              if 'continuationToken' in job_data:
+                continuation_token = json.loads(job_data['continuationToken'])
+                invalidation_id = continuation_token['InvalidationId']
+                res = cloudfront.get_invalidation(
+                  DistributionId=distribution_id,
+                  Id=invalidation_id
+                )
+                status = res['Invalidation']['Status']
+                if status == 'Completed':
+                  put_job_success(job_id)
+                else:
+                  continue_job_later(job_id, invalidation_id)
+              else:
+                res = cloudfront.create_invalidation(
+                  DistributionId=distribution_id,
+                  InvalidationBatch={
+                    'Paths': {
+                      'Quantity': 1,
+                      'Items': ['/*'],
+                    },
+                    'CallerReference': str(time.time())
+                  }
+                )
+                invalidation_id = res['Invalidation']['Id']
+                continue_job_later(job_id, invalidation_id)
+            except Exception as e:
+              print(e)
+              put_job_failure(job_id, str(e))
+            else:
+              print("Invalidation Completed.")
+              return "Invalidation Completed."
+
+# --------------------------------------------------------------#
+# IAM Role for Lambda that invocates CloudFront and CodePipeline
+# --------------------------------------------------------------#
+  LambdaCfCpInvocationRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub lambda-cloudfront-codepipeline-invocation-role-${Service}
+      Description: This role allows Lambda functions to invoke CloudFront and CodePipeline.
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+              - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: /
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AWSCodePipelineCustomActionAccess
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess
+      Policies:
+        - PolicyName: !Sub lambda-cloudfront-codepipeline-invocation-role-${Service}
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cloudfront:CreateInvalidation
+                  - cloudfront:GetInvalidation
+                Resource: !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/{{resolve:ssm:${SsmKeyCloudFrontDistributionId}}}'
+
+# ------------------------------------------------------------#
+# SSM Parameter Store
+# ------------------------------------------------------------#
+  SsmParamAwsRegion: #要確認
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub ${Service}_REGION
+      Type: String
+      DataType: text
+      Value: !Sub ${AWS::Region}
+      Description: AWS Region name
+      Tier: Standard
+      Tags:
+        Env: !Ref Env
+        Stack: !Ref Stack
+        Owner: !Ref Owner
+        Cost: !Sub ${Env}-${Stack}

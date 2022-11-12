@@ -1,0 +1,131 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Create SSM Parameters of the User Groups for IAM Identity Center.
+
+Mappings:
+  GroupMap:
+    administrator:
+      ID: 8754da38-e051-70cb-bae6-abde2354ed6d
+    poweruser:
+      ID: 17046ab8-a0a1-70d8-75ed-908219f13594
+    securityaudit:
+      ID: 6734aa08-e041-70e4-4338-ceb5a875847c
+    readonly:
+      ID: 27846a28-b041-70ee-4e2f-dcd12230a4a4
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      -
+        Label:
+          default: System Configuration
+        Parameters:
+          - AccountName
+          - Env
+          - Stack
+          - Owner
+
+    ParameterLabels:
+      Stack:
+        default: 'Stack: *Only lowercase alphanumeric characters and hyphens are allowed.'
+      Owner:
+        default: 'Owner: *Only lowercase alphanumeric characters and hyphens are allowed. Please put a hyphen between your first name and last name.'
+
+Parameters:
+  AccountName:
+    Description: Specify the Name of the Account to deploy this stack.
+    Type: String
+    Default: root
+    AllowedValues:
+      - root
+
+  Env:
+    Description: Specify the Env Tag. 
+    Type: String
+    Default: common
+    AllowedValues:
+      - prod
+      - stage
+      - test
+      - dev
+      - common
+
+  Stack:
+    Description: Specify the Stack Tag.
+    Type: String
+    Default: infra
+    AllowedPattern: ^[a-z]([\-]{0,1}[a-z0-9]+)*$
+    ConstraintDescription: This Parameter must match pattern ^[a-z]([\-]{0.1}[a-z0-9]+)*$
+
+  Owner:
+    Description: Enter the name of the person creating this stack.
+    Type: String
+    Default: masaki-ishimoto
+    AllowedPattern: ^[a-z]([\-]{0,1}[a-z0-9]+)*$
+    ConstraintDescription: This Parameter must match pattern ^[a-z]([\-]{0.1}[a-z0-9]+)*$
+
+Conditions:
+  CreateSsmParamGroupForAdmin:
+    !Not [!Equals ['', !FindInMap [GroupMap, administrator, ID]]]
+  CreateSsmParamGroupForPU:
+    !Not [!Equals ['', !FindInMap [GroupMap, poweruser, ID]]]
+  CreateSsmParamGroupForSA:
+    !Not [!Equals ['', !FindInMap [GroupMap, securityaudit, ID]]]
+  CreateSsmParamGroupForRO:
+    !Not [!Equals ['', !FindInMap [GroupMap, readonly, ID]]]
+
+
+Resources: 
+#------------------------------------#
+# SSM Parameter
+#------------------------------------#
+  SsmParamGroupForAdmin:
+    Condition: CreateSsmParamGroupForAdmin
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /${AccountName}-${AWS::AccountId}/sso/groupid/administrator
+      Type: String
+      Value: !FindInMap [GroupMap, administrator, ID]
+      Tags:
+        Env: !Ref Env
+        Stack: !Ref Stack
+        Owner: !Ref Owner
+        Cost: !Sub ${Env}-${Stack}
+
+  SsmParamGroupForPU:
+    Condition: CreateSsmParamGroupForPU
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /${AccountName}-${AWS::AccountId}/sso/groupid/poweruser
+      Type: String
+      Value: !FindInMap [GroupMap, poweruser, ID]
+      Tags:
+        Env: !Ref Env
+        Stack: !Ref Stack
+        Owner: !Ref Owner
+        Cost: !Sub ${Env}-${Stack}
+
+  SsmParamGroupForSA:
+    Condition: CreateSsmParamGroupForSA
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /${AccountName}-${AWS::AccountId}/sso/groupid/securityaudit
+      Type: String
+      Value: !FindInMap [GroupMap, securityaudit, ID]
+      Tags:
+        Env: !Ref Env
+        Stack: !Ref Stack
+        Owner: !Ref Owner
+        Cost: !Sub ${Env}-${Stack}
+
+  SsmParamGroupForRO:
+    Condition: CreateSsmParamGroupForRO
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /${AccountName}-${AWS::AccountId}/sso/groupid/readonly
+      Type: String
+      Value: !FindInMap [GroupMap, readonly, ID]
+      Tags:
+        Env: !Ref Env
+        Stack: !Ref Stack
+        Owner: !Ref Owner
+        Cost: !Sub ${Env}-${Stack}

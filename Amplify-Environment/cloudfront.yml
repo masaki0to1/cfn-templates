@@ -1,0 +1,408 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Provides a set of resources for CloudFront configuration.
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - 
+        Label:
+          default: System Configuration
+        Parameters:
+          - Env
+          - Stack
+          - Service
+          - Owner
+      - 
+        Label:
+          default: Route53 Configuration
+        Parameters:
+          - DomainName
+          - SubDomainName
+      - 
+        Label:
+          default: ACM Configuration
+        Parameters:
+          - AcmCertificateArn
+      - 
+        Label:
+          default: WAF Configuration
+        Parameters:
+          - WAFv2WebAclArn
+
+    ParameterLabels:
+      Stack:
+        default: 'Stack: *Only lowercase alphanumeric characters and hyphens are allowed.'
+      Service:
+        default: 'Service: *Only lowercase alphanumeric characters and hyphens are allowed.'
+      Owner:
+        default: 'Owner: *Only lowercase alphanumeric characters and hyphens are allowed. Please put a hyphen between your first name and last name.'
+        
+#---------------------------------------------------------#
+# Input Parameters
+#---------------------------------------------------------#
+Parameters:
+  Env:
+    Description: Specify the Env Tag. 
+    Type: String
+    Default: prod
+    AllowedValues:
+      - prod
+      - stage
+      - test
+      - dev
+      - common
+
+  Stack:
+    Description: Specify the Stack Tag.
+    Type: String
+    Default: ezapp
+    AllowedPattern: ^[a-z]([\-]{0,1}[a-z0-9]+)*$
+    ConstraintDescription: This Parameter must match pattern ^[a-z]([\-]{0.1}[a-z0-9]+)*$
+
+  Service:
+    Description: Enter the Service Name.
+    Type: String
+    Default: ezapp
+    AllowedPattern: ^[a-z]([\-]{0,1}[a-z0-9]+)*$
+    ConstraintDescription: This Parameter must match pattern ^[a-z]([\-]{0.1}[a-z0-9]+)*$
+
+  Owner:
+    Description: Enter the name of the person creating this stack.
+    Type: String
+    Default: masaki-ishimoto
+    AllowedPattern: ^[a-z]([\-]{0,1}[a-z0-9]+)*$
+    ConstraintDescription: This Parameter must match pattern ^[a-z]([\-]{0.1}[a-z0-9]+)*$
+
+  DomainName:
+    Description: Specify the SSM Parameter Value for the Domain name. 
+    Type: String
+    Default: '{{resolve:ssm:/route53/domainname:1}}'
+
+  SubDomainName:
+    Description: Enter the Sub domain name. 
+    Type: String
+    Default: ezapp
+
+  AcmCertificateArn:
+    Description: Enter the ARN of the ACM certificate.
+    Type: String
+    Default: arn:aws:acm:us-east-1:159034811409:certificate/a1f40393-7a17-49e3-bde5-a80c4cc4f679
+
+  WAFv2WebAclArn:
+    Description: Enter the ARN of the WAFv2 Web Acl.
+    Type: String
+    Default: arn:aws:wafv2:us-east-1:159034811409:global/webacl/WebACL-ezapp-app/5f115436-81f8-41c6-9bcc-669a460bb6ee
+
+Resources:
+# ------------------------------------------------------------#
+# S3
+# ------------------------------------------------------------#
+  S3BucketApp:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub ${Service}-app-${AWS::AccountId}
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders:
+              - '*'
+            AllowedMethods:
+              - 'GET'
+              - 'HEAD'
+            AllowedOrigins:
+              - !Sub https://${SubDomainName}.${DomainName}
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags: 
+        - Key: Env
+          Value: !Ref Env
+        - Key: Stack
+          Value: !Ref Stack
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: Cost
+          Value: !Sub ${Env}-${Stack}
+
+  S3BucketPolicyApp:
+    Type: AWS::S3::BucketPolicy
+    DependsOn:
+      - S3BucketApp
+      - CloudFrontDistributionApp
+    Properties:
+      Bucket: !Ref S3BucketApp 
+      PolicyDocument: 
+        Version: 2012-10-17
+        Statement:
+          - Action:
+            - s3:GetObject
+            Effect: Allow
+            Resource: !Sub arn:aws:s3:::${S3BucketApp}/*
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistributionApp}
+            # Principal:
+            #   AWS: !Sub arn:aws:iam::cloudfront:user/CloudFront Origin Access Identity ${CloudFrontOAIApp}
+
+  S3BucketArtifact:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub ${Service}-artifact-${AWS::AccountId}
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags: 
+        - Key: Env
+          Value: !Ref Env
+        - Key: Stack
+          Value: !Ref Stack
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: Cost
+          Value: !Sub ${Env}-${Stack}
+  
+  S3BucketLogs:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub ${Service}-logs-${AWS::AccountId}
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags: 
+        - Key: Env
+          Value: !Ref Env
+        - Key: Stack
+          Value: !Ref Stack
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: Cost
+          Value: !Sub ${Env}-${Stack}
+
+# ------------------------------------------------------------#
+# CloudFront Distribution
+# ------------------------------------------------------------#
+  CloudFrontDistributionApp:
+    Type: AWS::CloudFront::Distribution
+    DependsOn:
+      - S3BucketLogs
+      - CloudFrontCachePolicyApp
+      - CloudFrontOriginRequestPolicyApp
+      - CloudFrontOriginAccessControlApp
+    Properties:
+      DistributionConfig:
+        Aliases:
+          - !Sub ${SubDomainName}.${DomainName}
+        Comment: !Sub CloudFront distribution for ${Service}-app
+        DefaultCacheBehavior:
+          AllowedMethods:
+            - GET
+            - HEAD
+            - OPTIONS
+          CachedMethods:
+            - GET
+            - HEAD
+          CachePolicyId: !Ref CloudFrontCachePolicyApp
+          Compress: true
+          OriginRequestPolicyId: !Ref CloudFrontOriginRequestPolicyApp
+          SmoothStreaming: false
+          TargetOriginId: !Sub s3-origin-${SubDomainName}-app
+          ViewerProtocolPolicy: redirect-to-https
+        DefaultRootObject: index.html
+        Enabled: true
+        HttpVersion: http2 
+        IPV6Enabled: true
+        Logging:
+          Bucket: !GetAtt S3BucketLogs.DomainName
+          IncludeCookies: false
+          Prefix: cloudfront-accesslog/app/
+        Origins:
+          - ConnectionAttempts: 3
+            ConnectionTimeout: 10
+            DomainName: !Sub ${S3BucketApp}.s3.${AWS::Region}.amazonaws.com
+            Id: !Sub s3-origin-${SubDomainName}-app
+            S3OriginConfig:
+              OriginAccessIdentity: ''
+              # OriginAccessIdentity: !Sub origin-access-identity/cloudfront/${CloudFrontOAIApp}
+            OriginAccessControlId: !GetAtt CloudFrontOriginAccessControlApp.Id
+        PriceClass: PriceClass_200 # 日本エッジを含む中で最も安いプライスクラス（デフォルトは一番高いALLクラス）
+        ViewerCertificate:
+          AcmCertificateArn: !Ref AcmCertificateArn
+          MinimumProtocolVersion: TLSv1.2_2021
+          SslSupportMethod: sni-only
+        WebACLId: !Sub ${WAFv2WebAclArn}
+      Tags: 
+        - Key: Env
+          Value: !Ref Env
+        - Key: Stack
+          Value: !Ref Stack
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: Cost
+          Value: !Sub ${Env}-${Stack}
+
+  # CloudFrontOAIApp:
+  #   Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
+  #   Properties:
+  #     CloudFrontOriginAccessIdentityConfig:
+  #       Comment: !Sub CloudFront OAI for ${Service}-app
+
+  CloudFrontOriginAccessControlApp:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties: 
+      OriginAccessControlConfig: 
+        Description: !Sub CloudFront OAC for ${Service}-app
+        Name: !Sub origin-access-control-${Service}-app
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  CloudFrontCachePolicyApp:
+    Type: AWS::CloudFront::CachePolicy
+    Properties:
+      CachePolicyConfig:
+        Name: !Sub cache-policy-${Service}-app
+        Comment: CloudFront Cache Policy for ${Service}-app
+        DefaultTTL: 3600 #(1hour)
+        MaxTTL: 86400 #(24hours)
+        MinTTL: 60
+        ParametersInCacheKeyAndForwardedToOrigin:
+          CookiesConfig:
+            CookieBehavior: none
+          EnableAcceptEncodingBrotli: true
+          EnableAcceptEncodingGzip: true
+          HeadersConfig:
+            HeaderBehavior: whitelist
+            Headers:
+              - Access-Control-Request-Headers
+              - Access-Contorl-Request-Method
+              - Origin
+              - user-agent
+          QueryStringsConfig:
+            QueryStringBehavior: none
+
+  CloudFrontOriginRequestPolicyApp:
+    Type: AWS::CloudFront::OriginRequestPolicy
+    Properties:
+      OriginRequestPolicyConfig:
+        Name: !Sub origin-request-policy-${Service}-app
+        Comment: !Sub CloudFront Origin Request Policy for ${Service}-app
+        CookiesConfig:
+          CookieBehavior: none
+        HeadersConfig:
+          HeaderBehavior: whitelist
+          Headers:
+            - Access-Control-Request-Headers
+            - Access-Contorl-Request-Method
+            - Origin
+            - user-agent
+        QueryStringsConfig:
+          QueryStringBehavior: none
+
+# ------------------------------------------------------------#
+# Route 53
+# ------------------------------------------------------------#
+  Route53RecordIpv4App:
+    Type: AWS::Route53::RecordSet
+    DependsOn:
+      - CloudFrontDistributionApp
+    Properties:
+      HostedZoneName: !Sub ${DomainName}.
+      Name: !Sub ${SubDomainName}.${DomainName}.
+      Type: A
+      AliasTarget:
+        HostedZoneId: Z2FDTNDATAQYW2 # Constant HostedZone ID for CloudFront.
+        DNSName: !GetAtt CloudFrontDistributionApp.DomainName
+
+  Route53RecordIpv6App:
+    Type: AWS::Route53::RecordSet
+    DependsOn:
+      - CloudFrontDistributionApp
+    Properties:
+      HostedZoneName: !Sub ${DomainName}.
+      Name: !Sub ${SubDomainName}.${DomainName}.
+      Type: AAAA
+      AliasTarget:
+        HostedZoneId: Z2FDTNDATAQYW2 # Constant HostedZone ID for CloudFront.
+        DNSName: !GetAtt CloudFrontDistributionApp.DomainName
+
+# ------------------------------------------------------------#
+# SSM Parameter Store
+# ------------------------------------------------------------#
+  SsmParamAppBucketName:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /s3/app-bucket/name
+      Type: String
+      Value: !Ref S3BucketApp
+      Tags:
+        Env: !Ref Env
+        Stack: !Ref Stack
+        Owner: !Ref Owner
+        Cost: !Sub ${Env}-${Stack}
+
+  SsmParamArtifactBucketName:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /s3/artifact-bucket/name
+      Type: String
+      Value: !Ref S3BucketArtifact
+      Tags:
+        Env: !Ref Env
+        Stack: !Ref Stack
+        Owner: !Ref Owner
+        Cost: !Sub ${Env}-${Stack}
+
+  SsmParamLogsBucketName:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /s3/logs-bucket/name
+      Type: String
+      Value: !Ref S3BucketLogs
+      Tags:
+        Env: !Ref Env
+        Stack: !Ref Stack
+        Owner: !Ref Owner
+        Cost: !Sub ${Env}-${Stack}
+
+  SsmParamLogsBucketArn:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /s3/logs-bucket/arn
+      Type: String
+      Value: !GetAtt S3BucketLogs.Arn
+      Tags:
+        Env: !Ref Env
+        Stack: !Ref Stack
+        Owner: !Ref Owner
+        Cost: !Sub ${Env}-${Stack}
+
+  SsmParamCloudFrontOriginUrl:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /cloudfront/origin/url
+      Type: String
+      Value: !Sub https://${SubDomainName}.${DomainName}
+      Tags:
+        Env: !Ref Env
+        Stack: !Ref Stack
+        Owner: !Ref Owner
+        Cost: !Sub ${Env}-${Stack}
+
+  SsmParamCloudFrontDistributionId:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /cloudfront/distribution/id
+      Type: String
+      Value: !Ref CloudFrontDistributionApp
+      Tags:
+        Env: !Ref Env
+        Stack: !Ref Stack
+        Owner: !Ref Owner
+        Cost: !Sub ${Env}-${Stack}

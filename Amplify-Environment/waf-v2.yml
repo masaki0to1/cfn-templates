@@ -1,0 +1,157 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: This template must be used in us-east-1 region beause this stack is for attaching to CloudFront.
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - 
+        Label:
+          default: System Configuration
+        Parameters:
+          - Env
+          - Stack
+          - Service
+          - Owner
+
+    ParameterLabels:
+      Stack:
+        default: 'Stack: *Only lowercase alphanumeric characters and hyphens are allowed.'
+      Service:
+        default: 'Service: *Only lowercase alphanumeric characters and hyphens are allowed.'
+      Owner:
+        default: 'Owner: *Only lowercase alphanumeric characters and hyphens are allowed. Please put a hyphen between your first name and last name.'
+        
+#---------------------------------------------------------#
+# Input Parameters
+#---------------------------------------------------------#
+Parameters:
+  Env:
+    Description: Specify the Env Tag. 
+    Type: String
+    Default: prod
+    AllowedValues:
+      - prod
+      - stage
+      - test
+      - dev
+      - common
+
+  Stack:
+    Description: Specify the Stack Tag.
+    Type: String
+    Default: ezapp
+    AllowedPattern: ^[a-z]([\-]{0,1}[a-z0-9]+)*$
+    ConstraintDescription: This Parameter must match pattern ^[a-z]([\-]{0.1}[a-z0-9]+)*$
+
+  Service:
+    Description: Enter the Service Name.
+    Type: String
+    Default: ezapp
+    AllowedPattern: ^[a-z]([\-]{0,1}[a-z0-9]+)*$
+    ConstraintDescription: This Parameter must match pattern ^[a-z]([\-]{0.1}[a-z0-9]+)*$
+
+  Owner:
+    Description: Enter the name of the person creating this stack.
+    Type: String
+    Default: masaki-ishimoto
+    AllowedPattern: ^[a-z]([\-]{0,1}[a-z0-9]+)*$
+    ConstraintDescription: This Parameter must match pattern ^[a-z]([\-]{0.1}[a-z0-9]+)*$
+
+  SourceIpv4RangeList:
+    Description: The comma delimited list of allowed source IPv4 address range (CIDR) to access this web site. (e.g. xxx.xxx.xxx.xxx/xx,yyy.yyy.yyy.yyy/yy)
+    Type: CommaDelimitedList
+    Default: 113.37.201.11/32
+
+  # SourceIpv6RangeList:
+  #   Description: The comma delimited list of allowed source IPv6 address range (CIDR) to access this web site. (e.g. 1111:0000:0000:0000:0000:0000:0000:0111/128)
+  #   Type: CommaDelimitedList
+  #   Default: 1111:0000:0000:0000:0000:0000:0000:0111/128
+
+Resources:
+#---------------------------------------------------------#
+# WAF v2
+#---------------------------------------------------------#
+  WAFv2WebACL:
+    Type: AWS::WAFv2::WebACL
+    Properties:
+      # CaptchaConfig:
+      # CustomResponseBodies:
+      DefaultAction:
+        Block: {}
+      Description: WAF v2 WebACL for the IP-based restricted access .
+      Name: !Sub WebACL-${Service}-app
+      Rules:
+        - Name: !Sub CustomRule-IpWhiteList-${Service}-app
+          Action:
+            Allow: {}
+          Priority: 0
+          Statement:
+            # OrStatement:
+              # Statements:
+            IPSetReferenceStatement:
+              Arn: !GetAtt WAFv2Ipv4WhiteList.Arn
+                # - IPSetReferenceStatement:
+                #     Arn: !GetAtt WAFv2Ipv6WhiteList.Arn
+          VisibilityConfig: 
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: !Sub CustomRule-IpWhiteList-${Service}-app
+      Scope: CLOUDFRONT 
+      VisibilityConfig:
+        CloudWatchMetricsEnabled: true
+        MetricName: !Sub WebACL-${Service}-app
+        SampledRequestsEnabled: true
+      Tags: 
+        - Key: Env
+          Value: !Ref Env
+        - Key: Stack
+          Value: !Ref Stack
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: Cost
+          Value: !Sub ${Env}-${Stack}
+    DependsOn:
+    - WAFv2Ipv4WhiteList
+  
+  WAFv2Ipv4WhiteList:
+    Type: AWS::WAFv2::IPSet
+    Properties:
+      Addresses: !Ref SourceIpv4RangeList
+      Description: WAF v2 IPv4 white list for the IP-based restricted access.
+      IPAddressVersion: IPV4
+      Name: !Sub Ipv4WhiteList-${Service}-app
+      Scope: CLOUDFRONT
+      Tags: 
+        - Key: Env
+          Value: !Ref Env
+        - Key: Stack
+          Value: !Ref Stack
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: Cost
+          Value: !Sub ${Env}-${Stack}
+
+#--------------------------------------------------#
+# SSM Parameter Store
+#--------------------------------------------------#
+  SsmParamWebAclArn:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /wafv2/webaclarn
+      Type: String
+      Value: !GetAtt WAFv2WebACL.Arn
+      Tags:
+        Env: !Ref Env
+        Stack: !Ref Stack
+        Owner: !Ref Owner
+        Cost: !Sub ${Env}-${Stack}
+
+#---------------------------------------------------------#
+# Output Parameters
+#---------------------------------------------------------#
+# Outputs:
+# # WAF v2 WebACL
+#   WAFv2WebACLArn:
+#     Value: !GetAtt WAFv2WebACL.Arn
+#     Export: 
+#       Name: !Sub ${AWS::StackName}-arn

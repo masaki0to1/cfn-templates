@@ -1,0 +1,23 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: ---
+Metadata: 
+
+Parameters: 
+
+Mappings: 
+
+Conditions: 
+
+Resources: 
+
+  Type: AWS::Events::Rule
+  Properties: 
+    Description: Notify MS Teams when S3 buckets are updated.
+    EventBusName: notify-teams
+    EventPattern: Json
+    Name: s3bucket-trigger
+    RoleArn: String
+    ScheduleExpression: String
+    State: String
+    Targets: 
+      - Target
