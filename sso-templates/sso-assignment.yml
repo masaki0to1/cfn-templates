@@ -162,7 +162,7 @@ Parameters:
   KeyAccIdTechblog:
     Description: Specify the SSM Parameter Key of the Account ID for sandbox.
     Type: String
-    Default: /accountid/mailserver
+    Default: /accountid/techblog
 
 Resources:
 #------------------------------------#
