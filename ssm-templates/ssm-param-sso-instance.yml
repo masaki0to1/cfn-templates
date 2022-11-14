@@ -8,7 +8,7 @@ Metadata:
         Label:
           default: System Configuration
         Parameters:
-          - AccountName
+          # - AccountName
           - Env
           - Stack
           - Owner
@@ -25,12 +25,12 @@ Metadata:
         default: 'Owner: *Only lowercase alphanumeric characters and hyphens are allowed. Please put a hyphen between your first name and last name.'
 
 Parameters: 
-  AccountName:
-    Description: Specify the Name of the account to deploy this stack.
-    Type: String
-    Default: root
-    AllowedValues:
-      - root
+  # AccountName:
+  #   Description: Specify the Name of the account to deploy this stack.
+  #   Type: String
+  #   Default: root
+  #   AllowedValues:
+  #     - root
 
   Env:
     Description: Specify the Env Tag. 
@@ -74,7 +74,7 @@ Resources:
     # Condition: CreateParamSSOInstanceArn
     Type: AWS::SSM::Parameter
     Properties:
-      Name: !Sub /${AccountName}-${AWS::AccountId}/sso/instancearn 
+      Name: !Sub /sso/instancearn 
       Type: String
       Value: 'arn:aws:sso:::instance/ssoins-775897188895001f' 
       Tags:

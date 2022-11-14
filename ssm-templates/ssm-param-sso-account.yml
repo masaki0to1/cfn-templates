@@ -13,6 +13,8 @@ Mappings:
       ID: 727008614144
     mailserver:
       ID: 273203673559
+    techblog:
+      ID: 367242468135
 
 Metadata:
   AWS::CloudFormation::Interface:
@@ -39,16 +41,16 @@ Parameters:
   AccountList:
     Description: Enter the CommaDelimitedList of the account names within a multi-account environment.
     Type: String
-    Default: root,ezapp,operation,sandbox,mailserver
+    Default: root,ezapp,operation,sandbox,mailserver,techblog
     AllowedPattern: ^([a-z]([\-]{0,1}[a-z0-9]+)*)([,][a-z]([\-]{0,1}[a-z0-9]+)*)*$
     ConstraintDescription: This Parameter must match pattern ^([a-z]([\-]{0,1}[a-z0-9]+)*)([,][a-z]([\-]{0,1}[a-z0-9]+)*)*$
     
-  AccountName:
-    Description: Specify the Name of the account to deploy this stack.
-    Type: String
-    Default: root
-    AllowedValues:
-      - root
+  # AccountName:
+  #   Description: Specify the Name of the account to deploy this stack.
+  #   Type: String
+  #   Default: root
+  #   AllowedValues:
+  #     - root
 
   Env:
     Description: Specify the Env Tag. 
@@ -88,6 +90,8 @@ Conditions:
     !Not [!Equals ['', !FindInMap [AccountMap, sandbox, ID]]]
   CreateSsmParamAccIdForMailserver:
     !Not [!Equals ['', !FindInMap [AccountMap, mailserver, ID]]]
+  CreateSsmParamAccIdForTechblog:
+    !Not [!Equals ['', !FindInMap [AccountMap, techblog, ID]]]
 
 Resources: 
 #------------------------------------#
@@ -97,7 +101,7 @@ Resources:
     Condition: CreateSsmParamAccList
     Type: AWS::SSM::Parameter
     Properties:
-      Name: !Sub /${AccountName}-${AWS::AccountId}/accountname/list
+      Name: !Sub /accountname/list
       Type: StringList
       Value: !Ref AccountList
       Tags:
@@ -110,7 +114,7 @@ Resources:
     Condition: CreateSsmParamAccIdForRoot
     Type: AWS::SSM::Parameter
     Properties:
-      Name: !Sub /${AccountName}-${AWS::AccountId}/accountid/root
+      Name: !Sub /accountid/root
         # - /test/${Tmp}/${Stack}/sso/accountid/root
         # - { Tmp: !Select [ '0', ['{{resolve:ssm:/577787435504-root/multi-account-infra/sso/account/namelist}}'] ] }
       Type: String
@@ -125,7 +129,7 @@ Resources:
     Condition: CreateSsmParamAccIdForEzapp
     Type: AWS::SSM::Parameter
     Properties:
-      Name: !Sub /${AccountName}-${AWS::AccountId}/accountid/ezapp
+      Name: !Sub /accountid/ezapp
       Type: String
       Value: !FindInMap [AccountMap, ezapp, ID]
       Tags:
@@ -138,7 +142,7 @@ Resources:
     Condition: CreateSsmParamAccIdForOperation
     Type: AWS::SSM::Parameter
     Properties:
-      Name: !Sub /${AccountName}-${AWS::AccountId}/accountid/operation
+      Name: !Sub /accountid/operation
       Type: String
       Value: !FindInMap [AccountMap, operation, ID]
       Tags:
@@ -151,7 +155,7 @@ Resources:
     Condition: CreateSsmParamAccIdForSandbox
     Type: AWS::SSM::Parameter
     Properties:
-      Name: !Sub /${AccountName}-${AWS::AccountId}/accountid/sandbox
+      Name: !Sub /accountid/sandbox
       Type: String
       Value: !FindInMap [AccountMap, sandbox, ID]
       Tags:
@@ -164,9 +168,22 @@ Resources:
     Condition: CreateSsmParamAccIdForMailserver
     Type: AWS::SSM::Parameter
     Properties:
-      Name: !Sub /${AccountName}-${AWS::AccountId}/accountid/mailserver
+      Name: !Sub /accountid/mailserver
       Type: String
       Value: !FindInMap [AccountMap, mailserver, ID]
+      Tags:
+        Env: !Ref Env
+        Stack: !Ref Stack
+        Owner: !Ref Owner
+        Cost: !Sub ${Env}-${Stack}
+
+  SsmParamAccIdForTechblog:
+    Condition: CreateSsmParamAccIdForTechblog
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /accountid/techblog
+      Type: String
+      Value: !FindInMap [AccountMap, techblog, ID]
       Tags:
         Env: !Ref Env
         Stack: !Ref Stack

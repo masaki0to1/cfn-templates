@@ -19,7 +19,7 @@ Metadata:
         Label:
           default: System Configuration
         Parameters:
-          - AccountName
+          # - AccountName
           - Env
           - Stack
           - Owner
@@ -31,12 +31,12 @@ Metadata:
         default: 'Owner: *Only lowercase alphanumeric characters and hyphens are allowed. Please put a hyphen between your first name and last name.'
 
 Parameters:
-  AccountName:
-    Description: Specify the Name of the Account to deploy this stack.
-    Type: String
-    Default: root
-    AllowedValues:
-      - root
+  # AccountName:
+  #   Description: Specify the Name of the Account to deploy this stack.
+  #   Type: String
+  #   Default: root
+  #   AllowedValues:
+  #     - root
 
   Env:
     Description: Specify the Env Tag. 
@@ -82,7 +82,7 @@ Resources:
     Condition: CreateSsmParamGroupForAdmin
     Type: AWS::SSM::Parameter
     Properties:
-      Name: !Sub /${AccountName}-${AWS::AccountId}/sso/groupid/administrator
+      Name: !Sub /sso/groupid/administrator
       Type: String
       Value: !FindInMap [GroupMap, administrator, ID]
       Tags:
@@ -95,7 +95,7 @@ Resources:
     Condition: CreateSsmParamGroupForPU
     Type: AWS::SSM::Parameter
     Properties:
-      Name: !Sub /${AccountName}-${AWS::AccountId}/sso/groupid/poweruser
+      Name: !Sub /sso/groupid/poweruser
       Type: String
       Value: !FindInMap [GroupMap, poweruser, ID]
       Tags:
@@ -108,7 +108,7 @@ Resources:
     Condition: CreateSsmParamGroupForSA
     Type: AWS::SSM::Parameter
     Properties:
-      Name: !Sub /${AccountName}-${AWS::AccountId}/sso/groupid/securityaudit
+      Name: !Sub /sso/groupid/securityaudit
       Type: String
       Value: !FindInMap [GroupMap, securityaudit, ID]
       Tags:
@@ -121,7 +121,7 @@ Resources:
     Condition: CreateSsmParamGroupForRO
     Type: AWS::SSM::Parameter
     Properties:
-      Name: !Sub /${AccountName}-${AWS::AccountId}/sso/groupid/readonly
+      Name: !Sub /sso/groupid/readonly
       Type: String
       Value: !FindInMap [GroupMap, readonly, ID]
       Tags:

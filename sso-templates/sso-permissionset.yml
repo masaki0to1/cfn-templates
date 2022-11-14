@@ -29,7 +29,7 @@ Metadata:
         Label:
           default: System Configuration
         Parameters:
-          - AccountName
+          # - AccountName
           - Env
           - Stack
           - Owner
@@ -37,8 +37,8 @@ Metadata:
         Label:
           default: SSM Parameter Key Configuration
         Parameters:
-          - SsmAccInfo
-          - KeyForSsoInstanceArn
+          # - SsmAccInfo
+          - KeySsoInstanceArn
       -
         Label:
           default: IAM Identity Center Configuration
@@ -60,19 +60,19 @@ Metadata:
     ParameterLabels:
       Stack:
         default: 'Stack: *Only lowercase alphanumeric characters and hyphens are allowed.'
-      SsmAccInfo: 
-        default: 'SsmAccInfo: *Only lowercase alphanumeric characters and hyphens are allowed.'
+      # SsmAccInfo: 
+      #   default: 'SsmAccInfo: *Only lowercase alphanumeric characters and hyphens are allowed.'
       Owner:
         default: 'Owner: *Only lowercase alphanumeric characters and hyphens are allowed. Please put a hyphen between your first name and last name.'
 
 Parameters:
 # Paramters for System Info
-  AccountName:
-    Description: Specify the Name of the Account to deploy this stack.
-    Type: String
-    Default: root
-    AllowedValues:
-      - root
+  # AccountName:
+  #   Description: Specify the Name of the Account to deploy this stack.
+  #   Type: String
+  #   Default: root
+  #   AllowedValues:
+  #     - root
 
   Env:
     Description: Specify the Env Tag. 
@@ -100,22 +100,22 @@ Parameters:
     ConstraintDescription: This Parameter must match pattern ^[a-z]([\-]{0.1}[a-z0-9]+)*$
 
 # Parameters for SSM Parameter Store
-  SsmAccInfo:
-    Description: Enter the Account Name and ID with SSM Parameter Store to be referenced.
-    Type: String
-    Default: root-577787435504
-    AllowedPattern: ^[a-z]([\-]{0,1}[a-z0-9]+)*$
-    ConstraintDescription: This Parameter must match pattern ^[a-z]([\-]{0.1}[a-z0-9]+)*$
+  # SsmAccInfo:
+  #   Description: Enter the Account Name and ID with SSM Parameter Store to be referenced.
+  #   Type: String
+  #   Default: root-577787435504
+  #   AllowedPattern: ^[a-z]([\-]{0,1}[a-z0-9]+)*$
+  #   ConstraintDescription: This Parameter must match pattern ^[a-z]([\-]{0.1}[a-z0-9]+)*$
 
-  KeyForSsoInstanceArn:
+  KeySsoInstanceArn:
     Description: Specify the SSM Parameter Key of the SSO Instance Arn.
     Type: String
-    Default: sso/instancearn
+    Default: /sso/instancearn
 
   # SSOInstanceArn:
   #   Description: Specify the ARN of the SSO Instance.
   #   Type: String
-  #   Default: '{{resolve:ssm:/sso/instancearn:1}}'
+  #   Default: '{{resolve:ssm:sso/instancearn:1}}'
 
   # SsmAccName:
   #   Description: Specify the Account Name with SSM Parameter Store to be referenced. *Please be consistent with the SsmAccId.
@@ -131,7 +131,7 @@ Parameters:
   #   Type: String
   #   Default: sso/accountid/root
 
-  # KeyForSsoInstanceArn:
+  # KeySsoInstanceArn:
   #   Description: Specify the SSM Parameter Key of the SSO Instance Arn.
   #   Type: AWS::SSM::Parameter::Name
   #   Default: /root-577787435504/multi-account-infra/sso/instancearn
@@ -269,7 +269,7 @@ Resources:
     Type: AWS::SSO::PermissionSet
     Properties: 
       Description: Managed PermissionSet for Administrator.
-      InstanceArn: !Sub '{{resolve:ssm:/${SsmAccInfo}/${KeyForSsoInstanceArn}}}'
+      InstanceArn: !Sub '{{resolve:ssm:${KeySsoInstanceArn}}}'
       ManagedPolicies: 
         - !Ref ManagedPolicyArnForAdmin
       Name: AdministratorAccess
@@ -285,16 +285,16 @@ Resources:
         - Key: Cost
           Value: !Sub ${Env}-${Stack}
         # - Key: Test
-        #   Value: !Sub test-{{resolve:ssm:${SsmAccName}-${SsmAccId}/${Stack}/${SsmSsoAccRootKey}}}-{{resolve:ssm:${SsmAccName}-${SsmAccId}/${Stack}/${SsmKeyForSsoInstanceArn}}}
+        #   Value: !Sub test-{{resolve:ssm:${SsmAccName}-${SsmAccId}/${Stack}/${SsmSsoAccRootKey}}}-{{resolve:ssm:${SsmAccName}-${SsmAccId}/${Stack}/${SsmKeySsoInstanceArn}}}
         # - Key: Test2
-        #   Value: !Join [ '-', [!Sub '{{resolve:ssm:${SsmAccName}-${SsmAccId}/${Stack}/${SsmSsoAccRootKey}}}', !Sub '{{resolve:ssm:${SsmAccName}-${SsmAccId}/${Stack}/${SsmKeyForSsoInstanceArn}}}']]
+        #   Value: !Join [ '-', [!Sub '{{resolve:ssm:${SsmAccName}-${SsmAccId}/${Stack}/${SsmSsoAccRootKey}}}', !Sub '{{resolve:ssm:${SsmAccName}-${SsmAccId}/${Stack}/${SsmKeySsoInstanceArn}}}']]
 
   SsoPermSetForPU:
     Condition: CreatePermSetForPU
     Type: AWS::SSO::PermissionSet
     Properties: 
       Description: Managed PermissionSet for PowerUser.
-      InstanceArn: !Sub '{{resolve:ssm:/${SsmAccInfo}/${KeyForSsoInstanceArn}}}'
+      InstanceArn: !Sub '{{resolve:ssm:${KeySsoInstanceArn}}}'
       ManagedPolicies: 
         - !Ref ManagedPolicyArnForPU
       Name: PowerUserAccess
@@ -315,7 +315,7 @@ Resources:
     Type: AWS::SSO::PermissionSet
     Properties: 
       Description: Managed PermissionSet for SecurityAuditUser.
-      InstanceArn: !Sub '{{resolve:ssm:/${SsmAccInfo}/${KeyForSsoInstanceArn}}}'
+      InstanceArn: !Sub '{{resolve:ssm:${KeySsoInstanceArn}}}'
       ManagedPolicies: 
         - !Ref ManagedPolicyArnForSA
       Name: SecurityAuditAccess
@@ -336,7 +336,7 @@ Resources:
     Type: AWS::SSO::PermissionSet
     Properties: 
       Description: Managed PermissionSet for ReadOnlyUser.
-      InstanceArn: !Sub '{{resolve:ssm:/${SsmAccInfo}/${KeyForSsoInstanceArn}}}'
+      InstanceArn: !Sub '{{resolve:ssm:${KeySsoInstanceArn}}}'
       ManagedPolicies: 
         - !Ref ManagedPolicyArnForRO
       Name: ReadOnlyAccess
@@ -359,7 +359,7 @@ Resources:
     Condition: CreatePermSetForAdmin
     Type: AWS::SSM::Parameter
     Properties:
-      Name: !Sub /${AccountName}-${AWS::AccountId}/sso/permissionsetarn/administratoraccess
+      Name: !Sub /sso/permissionsetarn/administratoraccess
       Type: String
       Value: !GetAtt SsoPermSetForAdmin.PermissionSetArn
       Tags:
@@ -371,7 +371,7 @@ Resources:
     Condition: CreatePermSetForPU
     Type: AWS::SSM::Parameter
     Properties:
-      Name: !Sub /${AccountName}-${AWS::AccountId}/sso/permissionsetarn/poweruseraccess
+      Name: !Sub /sso/permissionsetarn/poweruseraccess
       Type: String
       Value: !GetAtt SsoPermSetForPU.PermissionSetArn
       Tags:
@@ -383,7 +383,7 @@ Resources:
     Condition: CreatePermSetForSA
     Type: AWS::SSM::Parameter
     Properties:
-      Name: !Sub /${AccountName}-${AWS::AccountId}/sso/permissionsetarn/securityaudit
+      Name: !Sub /sso/permissionsetarn/securityaudit
       Type: String
       Value: !GetAtt SsoPermSetForSA.PermissionSetArn
       Tags:
@@ -395,7 +395,7 @@ Resources:
     Condition: CreatePermSetForRO
     Type: AWS::SSM::Parameter
     Properties:
-      Name: !Sub /${AccountName}-${AWS::AccountId}/sso/permissionsetarn/readonlyaccess
+      Name: !Sub /sso/permissionsetarn/readonlyaccess
       Type: String
       Value: !GetAtt SsoPermSetForRO.PermissionSetArn
       Tags:
