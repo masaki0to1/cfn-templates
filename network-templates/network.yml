@@ -68,6 +68,7 @@ Resources:
         #   - 0
         #   - Fn::GetAZs: ""
       CidrBlock: !Select [8, !Cidr [!GetAtt Vpc.CidrBlock, 9, 8]] # Specify 10.0.8.0/24
+      MapPublicIpOnLaunch: false
       VpcId: !Ref Vpc
       Tags:
         - Key: Env
@@ -89,6 +90,7 @@ Resources:
         #   - 1
         #   - Fn::GetAZs: ""
       CidrBlock: !Select [9, !Cidr [!GetAtt Vpc.CidrBlock, 10, 8]] # Specify 10.0.9.0/24
+      MapPublicIpOnLaunch: false
       VpcId: !Ref Vpc
       Tags:
         - Key: Env
@@ -110,6 +112,7 @@ Resources:
         #   - 0
         #   - Fn::GetAZs: ""
       CidrBlock: !Select [16, !Cidr [!GetAtt Vpc.CidrBlock, 17, 8]] # Specify 10.0.16.0/24
+      MapPublicIpOnLaunch: false
       VpcId: !Ref Vpc
       Tags:
         - Key: Env
@@ -131,6 +134,7 @@ Resources:
         #   - 1
         #   - Fn::GetAZs: ""
       CidrBlock: !Select [17, !Cidr [!GetAtt Vpc.CidrBlock, 18, 8]] # Spcecify 10.0.17.0/24
+      MapPublicIpOnLaunch: false
       VpcId: !Ref Vpc
       Tags:
         - Key: Env
@@ -143,6 +147,44 @@ Resources:
           Value: !Sub ${Env}-${Stack}
         - Key: Name
           Value: subnet-private-db-1c
+
+  SubnetPrivateEgress1A:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 10.0.248.0/24
+      VpcId: !Ref Vpc
+      AvailabilityZone: !Select [0, !GetAZs '']
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Env
+          Value: !Ref Env
+        - Key: Stack
+          Value: !Ref Stack
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: Cost
+          Value: !Sub ${Env}-${Stack}
+        - Key: Name
+          Value: subnet-private-egress-1a
+
+  SubnetPrivateEgress1C:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 10.0.249.0/24
+      VpcId: !Ref Vpc
+      AvailabilityZone: !Select [1, !GetAZs '']
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Env
+          Value: !Ref Env
+        - Key: Stack
+          Value: !Ref Stack
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: Cost
+          Value: !Sub ${Env}-${Stack}
+        - Key: Name
+          Value: subnet-private-egress-1c
 
   #----------------------------#
   # Public Subnet
@@ -380,8 +422,8 @@ Resources:
   SecurityGroupInternet:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: Security group for internet
-      GroupName: internet
+      GroupDescription: Security Group for internet
+      GroupName: ingress
       SecurityGroupEgress:
         - CidrIp: 0.0.0.0/0
           Description: Allow all outbound traffic by default
@@ -414,8 +456,8 @@ Resources:
   SecurityGroupManagementServer:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: Security Group of management server
-      GroupName: management
+      GroupDescription: Security Group for Management Server
+      GroupName: management-egress
       SecurityGroupEgress:
         - CidrIp: 0.0.0.0/0
           Description: Allow all outbound traffic by default
@@ -431,14 +473,14 @@ Resources:
         - Key: Cost
           Value: !Sub ${Env}-${Stack}
         - Key: Name
-          Value: securitygroup-management-server
+          Value: securitygroup-management-server-egress
   
   # Security Group for Backend Container App
   SecurityGroupBackendContainer:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: Security Group of backend container app
-      GroupName: backend-container
+      GroupDescription: Security Group for Backend Container App
+      GroupName: backend-container-egress
       SecurityGroupEgress:
         - CidrIp: 0.0.0.0/0
           Description: Allow all outbound traffic by default
@@ -454,14 +496,14 @@ Resources:
         - Key: Cost
           Value: !Sub ${Env}-${Stack}
         - Key: Name
-          Value: securitygroup-backend-container
+          Value: securitygroup-backend-container-egress
   
   # Security Group for Frontend Container App
   SecurityGroupFrontendContainer:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: Security Group of front container app
-      GroupName: frontend-container
+      GroupDescription: Security Group for Frontend Container App
+      GroupName: frontend-container-egress
       SecurityGroupEgress:
         - CidrIp: 0.0.0.0/0
           Description: Allow all outbound traffic by default
@@ -477,14 +519,14 @@ Resources:
         - Key: Cost
           Value: !Sub ${Env}-${Stack}
         - Key: Name
-          Value: securitygroup-frontend-container
+          Value: securitygroup-frontend-container-egress
 
   # Security Group for Internal LB
   SecurityGroupInternalLoadBalancer:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: Security group for internal load balancer
-      GroupName: internal-load-balancer
+      GroupDescription: Security Group for Internal Load Balancer
+      GroupName: internal-load-balancer-egress
       SecurityGroupEgress:
         - CidrIp: 0.0.0.0/0
           Description: Allow all outbound traffic by default
@@ -500,14 +542,14 @@ Resources:
         - Key: Cost
           Value: !Sub ${Env}-${Stack}
         - Key: Name
-          Value: securitygroup-internal-load-balancer
+          Value: securitygroup-internal-load-balancer-egress
 
   # Security Group for DB
   SecurityGroupDb:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: Security Group of database
-      GroupName: database
+      GroupDescription: Security Group for database
+      GroupName: database-egress
       SecurityGroupEgress:
         - CidrIp: 0.0.0.0/0
           Description: Allow all outbound traffic by default
@@ -523,7 +565,34 @@ Resources:
         - Key: Cost
           Value: !Sub ${Env}-${Stack}
         - Key: Name
-          Value: securitygroup-db
+          Value: securitygroup-db-egress
+
+  # Security Group for VPC Endpoint
+  SecurityGroupVpcEndpoint:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security Group for VPC endpoint
+      GroupName: vpc-endpoint-egress
+      SecurityGroupEgress:
+        - CidrIp: 0.0.0.0/0
+          Description: Allow all outbound traffic by default
+          IpProtocol: "-1"
+      VpcId: !Ref Vpc
+      Tags:
+        - Key: Env
+          Value: !Ref Env
+        - Key: Stack
+          Value: !Ref Stack
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: Cost
+          Value: !Sub ${Env}-${Stack}
+        - Key: Name
+          Value: securitygroup-vpc-endpoint-egress
+
+#---------------------------------------------------------#
+# Security Group Ingress
+#---------------------------------------------------------#
 
   # Internet -> Frontend Container App
   IngressFrontendContainerFromInternet:
@@ -540,7 +609,7 @@ Resources:
   IngressInternalLoadBalancerFromFrontendContainer:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
-      Description: HTTP for frontend container
+      Description: HTTP for Frontend Container App
       IpProtocol: tcp
       FromPort: 80
       ToPort: 80
@@ -551,7 +620,7 @@ Resources:
   IngressBackendContainerFromInternalLoadBalancer:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
-      Description: HTTP for internal load balancer
+      Description: HTTP for Internal Load Balancer
       IpProtocol: tcp
       FromPort: 80
       ToPort: 80      
@@ -559,10 +628,10 @@ Resources:
       GroupId: !GetAtt SecurityGroupBackendContainer.GroupId
 
   # Backend Container App -> DB
-  IngressDbFromBackendContainerTCP:
+  IngressDbFromBackendContainer:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
-      Description: MySQL protocol from backend App
+      Description: MySQL protocol from Backend Container App
       IpProtocol: tcp
       FromPort: 3306
       ToPort: 3306
@@ -570,10 +639,10 @@ Resources:
       GroupId: !GetAtt SecurityGroupDb.GroupId
 
   # Frontend Container App -> DB
-  IngressDbFromFrontendContainerTCP:
+  IngressDbFromFrontendContainer:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
-      Description: MySQL protocol from frontend App
+      Description: MySQL protocol from Frontend Container App
       IpProtocol: tcp
       FromPort: 3306
       ToPort: 3306
@@ -581,22 +650,56 @@ Resources:
       GroupId: !GetAtt SecurityGroupDb.GroupId
 
   # Management Server -> DB
-  IngressDbFromManagementTCP:
+  IngressDbFromManagement:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
-      Description: MySQL protocol from management server
+      Description: MySQL protocol from Management Server
       IpProtocol: tcp
       FromPort: 3306
       ToPort: 3306  
       SourceSecurityGroupId: !GetAtt SecurityGroupManagementServer.GroupId
       GroupId: !GetAtt SecurityGroupDb.GroupId
+
   # Management Server -> Internal LB
-  IngressInternalLoadBalancerFromManagementTCP:
+  IngressInternalLoadBalancerFromManagement:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
-      Description: HTTP for management server
+      Description: HTTP for Management Server
       IpProtocol: tcp
       FromPort: 80
       ToPort: 80
       SourceSecurityGroupId: !GetAtt SecurityGroupManagementServer.GroupId
       GroupId: !GetAtt SecurityGroupInternalLoadBalancer.GroupId
+
+  # Frontend container -> VPC endpoint
+  IngressVpcEndpointFromFrontendContainer:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      IpProtocol: tcp
+      Description: HTTPS for Frontend Container App
+      FromPort: 443
+      ToPort: 443
+      SourceSecurityGroupId: !GetAtt SecurityGroupFrontendContainer.GroupId
+      GroupId: !GetAtt SecurityGroupVpcEndpoint.GroupId
+
+  # Backend container -> VPC endpoint
+  IngressVpcEndpointFromBackendContainer:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      IpProtocol: tcp
+      Description: HTTPS for Backend Container App
+      FromPort: 443
+      ToPort: 443
+      SourceSecurityGroupId: !GetAtt SecurityGroupFrontendContainer.GroupId
+      GroupId: !GetAtt SecurityGroupVpcEndpoint.GroupId
+      
+  # Management Server -> VPC endpoint
+  IngressVpcEndpointFromManagement:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      IpProtocol: tcp
+      Description: HTTPS for Management Server
+      FromPort: 443
+      GroupId: !GetAtt SecurityGroupVpcEndpoint.GroupId
+      SourceSecurityGroupId: !GetAtt SecurityGroupManagement.GroupId
+      ToPort: 443
