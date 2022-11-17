@@ -1,0 +1,602 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Provides Network resource.
+
+Parameters:
+  Env:
+    Description: Specify the Env Tag. 
+    Type: String
+    Default: test
+    AllowedValues:
+      - prod
+      - stage
+      - test
+      - dev
+      - common
+
+  Stack:
+    Description: Specify the Stack Tag.
+    Type: String
+    Default: network
+    AllowedPattern: ^[a-z]([\-]{0,1}[a-z0-9]+)*$
+    ConstraintDescription: This Parameter must match pattern ^[a-z]([\-]{0.1}[a-z0-9]+)*$
+
+  Owner:
+    Description: Enter the name of the person creating this stack.
+    Type: String
+    Default: masaki-ishimoto
+    AllowedPattern: ^[a-z]([\-]{0,1}[a-z0-9]+)*$
+    ConstraintDescription: This Parameter must match pattern ^[a-z]([\-]{0.1}[a-z0-9]+)*$
+
+  KeyCidrBlock:
+    Description: Specify the SSM Paramter Store Key for the CidrBlock.
+    Type: AWS::SSM::Parameter::Name
+    Default: /vpc/cidrblock
+
+Resources:
+#---------------------------------------------------------#
+# VPC
+#---------------------------------------------------------#
+  Vpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Sub '{{resolve:ssm:${KeyCidrBlock}}}'
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      InstanceTenancy: default
+      Tags:
+        - Key: Env
+          Value: !Ref Env
+        - Key: Stack
+          Value: !Ref Stack
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: Cost
+          Value: !Sub ${Env}-${Stack}
+
+#---------------------------------------------------------#
+# Subnet
+#---------------------------------------------------------#
+  #----------------------------#
+  # Private Subnet
+  #----------------------------#
+  SubnetPrivateContainer1A:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [0, !GetAZs ''] # Specify ap-northeast-1a
+      # AvailabilityZone: !Select [0, Fn::GetAZs: !Ref 'AWS::Region']
+        # Fn::Select: 
+        #   - 0
+        #   - Fn::GetAZs: ""
+      CidrBlock: !Select [8, !Cidr [!GetAtt Vpc.CidrBlock, 9, 8]] # Specify 10.0.8.0/24
+      VpcId: !Ref Vpc
+      Tags:
+        - Key: Env
+          Value: !Ref Env
+        - Key: Stack
+          Value: !Ref Stack
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: Cost
+          Value: !Sub ${Env}-${Stack}
+        - Key: Name
+          Value: subnet-private-container-1a
+
+  SubnetPrivateContainer1C:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [1, !GetAZs ''] # Specify ap-northeast-1c
+        # Fn::Select: 
+        #   - 1
+        #   - Fn::GetAZs: ""
+      CidrBlock: !Select [9, !Cidr [!GetAtt Vpc.CidrBlock, 10, 8]] # Specify 10.0.9.0/24
+      VpcId: !Ref Vpc
+      Tags:
+        - Key: Env
+          Value: !Ref Env
+        - Key: Stack
+          Value: !Ref Stack
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: Cost
+          Value: !Sub ${Env}-${Stack}
+        - Key: Name
+          Value: subnet-private-container-1c
+
+  SubnetPrivateDb1A:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [0, !GetAZs ''] 
+        # Fn::Select: 
+        #   - 0
+        #   - Fn::GetAZs: ""
+      CidrBlock: !Select [16, !Cidr [!GetAtt Vpc.CidrBlock, 17, 8]] # Specify 10.0.16.0/24
+      VpcId: !Ref Vpc
+      Tags:
+        - Key: Env
+          Value: !Ref Env
+        - Key: Stack
+          Value: !Ref Stack
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: Cost
+          Value: !Sub ${Env}-${Stack}
+        - Key: Name
+          Value: subnet-private-db-1a
+
+  SubnetPrivateDb1C:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [1, !GetAZs ''] 
+        # Fn::Select: 
+        #   - 1
+        #   - Fn::GetAZs: ""
+      CidrBlock: !Select [17, !Cidr [!GetAtt Vpc.CidrBlock, 18, 8]] # Spcecify 10.0.17.0/24
+      VpcId: !Ref Vpc
+      Tags:
+        - Key: Env
+          Value: !Ref Env
+        - Key: Stack
+          Value: !Ref Stack
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: Cost
+          Value: !Sub ${Env}-${Stack}
+        - Key: Name
+          Value: subnet-private-db-1c
+
+  #----------------------------#
+  # Public Subnet
+  #----------------------------#
+  SubnetPublicIngress1A:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [0, !GetAZs ''] 
+        # Fn::Select: 
+        #   - 0
+        #   - Fn::GetAZs: ""
+      CidrBlock: !Select [0, !Cidr [!GetAtt Vpc.CidrBlock, 1, 8]] # Specify 10.0.0.0/24
+      MapPublicIpOnLaunch: true
+      VpcId: !Ref Vpc
+      Tags:
+        - Key: Env
+          Value: !Ref Env
+        - Key: Stack
+          Value: !Ref Stack
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: Cost
+          Value: !Sub ${Env}-${Stack}
+        - Key: Name
+          Value: subnet-public-ingress-1a
+
+  SubnetPublicIngress1C:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [1, !GetAZs '']
+        # Fn::Select: 
+        #   - 1
+          # - Fn::GetAZs: ""
+      CidrBlock: !Select [1, !Cidr [!GetAtt Vpc.CidrBlock, 2, 8]] # Specify 10.0.1.0/24
+      VpcId: !Ref Vpc
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Env
+          Value: !Ref Env
+        - Key: Stack
+          Value: !Ref Stack
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: Cost
+          Value: !Sub ${Env}-${Stack}
+        - Key: Name
+          Value: subnet-public-ingress-1c
+
+  SubnetPublicManagement1A:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [0, !GetAZs '']
+        # Fn::Select: 
+        #   - 0
+        #   - Fn::GetAZs: ""
+      CidrBlock: !Select [240, !Cidr [!GetAtt Vpc.CidrBlock, 241, 8]] # Specify 10.0.240.0/24
+      MapPublicIpOnLaunch: true
+      VpcId: !Ref Vpc
+      Tags:
+        - Key: Env
+          Value: !Ref Env
+        - Key: Stack
+          Value: !Ref Stack
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: Cost
+          Value: !Sub ${Env}-${Stack}
+        - Key: Name
+          Value: subnet-public-management-1a
+
+  SubnetPublicManagement1C:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [1, !GetAZs '']
+        # Fn::Select: 
+        #   - 1
+        #   - Fn::GetAZs: ""
+      CidrBlock: !Select [241, !Cidr [!GetAtt Vpc.CidrBlock, 242, 8]] # Specify 10.0.241.0/24
+      MapPublicIpOnLaunch: true
+      VpcId: !Ref Vpc
+      Tags:
+        - Key: Env
+          Value: !Ref Env
+        - Key: Stack
+          Value: !Ref Stack
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: Cost
+          Value: !Sub ${Env}-${Stack}
+        - Key: Name
+          Value: subnet-public-management-1c
+
+#---------------------------------------------------------#
+# Route Table
+#---------------------------------------------------------#
+  RouteTableContainerApp:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Vpc
+      Tags:
+        - Key: Env
+          Value: !Ref Env
+        - Key: Stack
+          Value: !Ref Stack
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: Cost
+          Value: !Sub ${Env}-${Stack}
+        - Key: Name
+          Value: route-table-app
+
+  RouteTableDb:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Vpc
+      Tags:
+        - Key: Env
+          Value: !Ref Env
+        - Key: Stack
+          Value: !Ref Stack
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: Cost
+          Value: !Sub ${Env}-${Stack}
+        - Key: Name
+          Value: route-table-db
+
+  RouteTableIngress:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Vpc
+      Tags:
+        - Key: Env
+          Value: !Ref Env
+        - Key: Stack
+          Value: !Ref Stack
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: Cost
+          Value: !Sub ${Env}-${Stack}
+        - Key: Name
+          Value: route-table-ingress
+
+#---------------------------------------------------------#
+# Route Table Association
+#---------------------------------------------------------#
+  AssociationContainerApp1A:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref RouteTableContainerApp
+      SubnetId: !Ref SubnetPrivateContainer1A
+
+  AssociationContainerApp1C:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref RouteTableContainerApp
+      SubnetId: !Ref SubnetPrivateContainer1C
+
+  AssociationDb1A:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref RouteTableDb
+      SubnetId: !Ref SubnetPrivateDb1A
+
+  AssociationDb1C:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref RouteTableDb
+      SubnetId: !Ref SubnetPrivateDb1C
+
+  AssociationIngress1A:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref RouteTableIngress
+      SubnetId: !Ref SubnetPublicIngress1A
+
+  AssociationIngress1C:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref RouteTableIngress
+      SubnetId: !Ref SubnetPublicIngress1C
+
+  AssociationManagement1A:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref RouteTableIngress
+      SubnetId: !Ref SubnetPublicManagement1A
+  AssociationManagement1C:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref RouteTableIngress
+      SubnetId: !Ref SubnetPublicManagement1C
+
+#---------------------------------------------------------#
+# Route 
+#---------------------------------------------------------#
+  RouteIngressDefault:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref RouteTableIngress
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref Igw
+    DependsOn:
+      - VpcGateWayAttachment
+
+#---------------------------------------------------------#
+# Internet Gateway
+#---------------------------------------------------------#
+  Igw:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Env
+          Value: !Ref Env
+        - Key: Stack
+          Value: !Ref Stack
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: Cost
+          Value: !Sub ${Env}-${Stack}
+
+#---------------------------------------------------------#
+# VPC Gateway Attachment
+#---------------------------------------------------------#
+  VpcGateWayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref Vpc
+      InternetGatewayId: !Ref Igw
+
+#---------------------------------------------------------#
+# Security Group
+#---------------------------------------------------------#
+  # Security Group for Internet
+  SecurityGroupInternet:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for internet
+      GroupName: internet
+      SecurityGroupEgress:
+        - CidrIp: 0.0.0.0/0
+          Description: Allow all outbound traffic by default
+          IpProtocol: "-1"
+      SecurityGroupIngress:
+        - CidrIp: 0.0.0.0/0
+          Description: from 0.0.0.0/0:80
+          IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+        - CidrIpv6: ::/0
+          Description: from ::/0:80
+          IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+      VpcId: !Ref Vpc
+      Tags:
+        - Key: Env
+          Value: !Ref Env
+        - Key: Stack
+          Value: !Ref Stack
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: Cost
+          Value: !Sub ${Env}-${Stack}
+        - Key: Name
+          Value: securitygroup-ingress
+  
+  # Security Group for Management Server
+  SecurityGroupManagementServer:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security Group of management server
+      GroupName: management
+      SecurityGroupEgress:
+        - CidrIp: 0.0.0.0/0
+          Description: Allow all outbound traffic by default
+          IpProtocol: "-1"
+      VpcId: !Ref Vpc
+      Tags:
+        - Key: Env
+          Value: !Ref Env
+        - Key: Stack
+          Value: !Ref Stack
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: Cost
+          Value: !Sub ${Env}-${Stack}
+        - Key: Name
+          Value: securitygroup-management-server
+  
+  # Security Group for Backend Container App
+  SecurityGroupBackendContainer:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security Group of backend container app
+      GroupName: backend-container
+      SecurityGroupEgress:
+        - CidrIp: 0.0.0.0/0
+          Description: Allow all outbound traffic by default
+          IpProtocol: "-1"
+      VpcId: !Ref Vpc
+      Tags:
+        - Key: Env
+          Value: !Ref Env
+        - Key: Stack
+          Value: !Ref Stack
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: Cost
+          Value: !Sub ${Env}-${Stack}
+        - Key: Name
+          Value: securitygroup-backend-container
+  
+  # Security Group for Frontend Container App
+  SecurityGroupFrontendContainer:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security Group of front container app
+      GroupName: frontend-container
+      SecurityGroupEgress:
+        - CidrIp: 0.0.0.0/0
+          Description: Allow all outbound traffic by default
+          IpProtocol: "-1"
+      VpcId: !Ref Vpc
+      Tags:
+        - Key: Env
+          Value: !Ref Env
+        - Key: Stack
+          Value: !Ref Stack
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: Cost
+          Value: !Sub ${Env}-${Stack}
+        - Key: Name
+          Value: securitygroup-frontend-container
+
+  # Security Group for Internal LB
+  SecurityGroupInternalLoadBalancer:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for internal load balancer
+      GroupName: internal-load-balancer
+      SecurityGroupEgress:
+        - CidrIp: 0.0.0.0/0
+          Description: Allow all outbound traffic by default
+          IpProtocol: "-1"
+      VpcId: !Ref Vpc
+      Tags:
+        - Key: Env
+          Value: !Ref Env
+        - Key: Stack
+          Value: !Ref Stack
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: Cost
+          Value: !Sub ${Env}-${Stack}
+        - Key: Name
+          Value: securitygroup-internal-load-balancer
+
+  # Security Group for DB
+  SecurityGroupDb:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security Group of database
+      GroupName: database
+      SecurityGroupEgress:
+        - CidrIp: 0.0.0.0/0
+          Description: Allow all outbound traffic by default
+          IpProtocol: "-1"
+      VpcId: !Ref Vpc
+      Tags:
+        - Key: Env
+          Value: !Ref Env
+        - Key: Stack
+          Value: !Ref Stack
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: Cost
+          Value: !Sub ${Env}-${Stack}
+        - Key: Name
+          Value: securitygroup-db
+
+  # Internet -> Frontend Container App
+  IngressFrontendContainerFromInternet:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: HTTP for Internet
+      IpProtocol: tcp
+      FromPort: 80
+      ToPort: 80  
+      SourceSecurityGroupId: !GetAtt SecurityGroupInternet.GroupId
+      GroupId: !GetAtt SecurityGroupFrontendContainer.GroupId
+
+  # Frontend Container App -> Internal LB
+  IngressInternalLoadBalancerFromFrontendContainer:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: HTTP for frontend container
+      IpProtocol: tcp
+      FromPort: 80
+      ToPort: 80
+      SourceSecurityGroupId: !GetAtt SecurityGroupFrontendContainer.GroupId
+      GroupId: !GetAtt SecurityGroupInternalLoadBalancer.GroupId
+
+  # Internal LB -> Backend Container App
+  IngressBackendContainerFromInternalLoadBalancer:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: HTTP for internal load balancer
+      IpProtocol: tcp
+      FromPort: 80
+      ToPort: 80      
+      SourceSecurityGroupId: !GetAtt SecurityGroupInternalLoadBalancer.GroupId
+      GroupId: !GetAtt SecurityGroupBackendContainer.GroupId
+
+  # Backend Container App -> DB
+  IngressDbFromBackendContainerTCP:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: MySQL protocol from backend App
+      IpProtocol: tcp
+      FromPort: 3306
+      ToPort: 3306
+      SourceSecurityGroupId: !GetAtt SecurityGroupBackendContainer.GroupId
+      GroupId: !GetAtt SecurityGroupDb.GroupId
+
+  # Frontend Container App -> DB
+  IngressDbFromFrontendContainerTCP:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: MySQL protocol from frontend App
+      IpProtocol: tcp
+      FromPort: 3306
+      ToPort: 3306
+      SourceSecurityGroupId: !GetAtt SecurityGroupFrontendContainer.GroupId
+      GroupId: !GetAtt SecurityGroupDb.GroupId
+
+  # Management Server -> DB
+  IngressDbFromManagementTCP:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: MySQL protocol from management server
+      IpProtocol: tcp
+      FromPort: 3306
+      ToPort: 3306  
+      SourceSecurityGroupId: !GetAtt SecurityGroupManagementServer.GroupId
+      GroupId: !GetAtt SecurityGroupDb.GroupId
+  # Management Server -> Internal LB
+  IngressInternalLoadBalancerFromManagementTCP:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: HTTP for management server
+      IpProtocol: tcp
+      FromPort: 80
+      ToPort: 80
+      SourceSecurityGroupId: !GetAtt SecurityGroupManagementServer.GroupId
+      GroupId: !GetAtt SecurityGroupInternalLoadBalancer.GroupId
