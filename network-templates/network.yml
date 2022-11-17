@@ -5,7 +5,7 @@ Parameters:
   Env:
     Description: Specify the Env Tag. 
     Type: String
-    Default: test
+    Default: dev
     AllowedValues:
       - prod
       - stage
@@ -30,7 +30,7 @@ Parameters:
   KeyCidrBlock:
     Description: Specify the SSM Paramter Store Key for the CidrBlock.
     Type: AWS::SSM::Parameter::Name
-    Default: /vpc/cidrblock
+    Default: /network/cidrblock
 
 Resources:
 #---------------------------------------------------------#

@@ -57,7 +57,7 @@ Resources:
   SsmParamCidrBlock:
     Type: AWS::SSM::Parameter
     Properties:
-      Name: !Sub /vpc/cidrblock
+      Name: !Sub /network /cidrblock
       Type: String
       Value: !Ref CidrBlock
       Tags:
