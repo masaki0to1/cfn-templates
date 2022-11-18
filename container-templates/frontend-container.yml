@@ -3,22 +3,48 @@ Description: Create frontend base
 
 ################# Input parameters ###############
 Parameters:
-  Prefix:
-    Default: sbcntr
+  Env:
+    Description: Specify the Env Tag. 
     Type: String
+    Default: dev
+    AllowedValues:
+      - prod
+      - stage
+      - test
+      - dev
+      - common
+
+  Stack:
+    Description: Specify the Stack Tag.
+    Type: String
+    Default: network
+    AllowedPattern: ^[a-z]([\-]{0,1}[a-z0-9]+)*$
+    ConstraintDescription: This Parameter must match pattern ^[a-z]([\-]{0.1}[a-z0-9]+)*$
+
+  Owner:
+    Description: Enter the name of the person creating this stack.
+    Type: String
+    Default: masaki-ishimoto
+    AllowedPattern: ^[a-z]([\-]{0,1}[a-z0-9]+)*$
+    ConstraintDescription: This Parameter must match pattern ^[a-z]([\-]{0.1}[a-z0-9]+)*$
+
   VpcId:
     Description : Input 'sbcntr' VPC ID
     Type: AWS::EC2::VPC::Id
+
 # ALB 
   ALBSecurityGroupId:
     Description: Input 'ingress' SecurityGroup ID
     Type: AWS::EC2::SecurityGroup::Id
+
   ALBSubnetId1:
     Description : Input 'ingress' Subnet ID for ap-northeast-1a
     Type : AWS::EC2::Subnet::Id
+
   ALBSubnetId2:
     Description : Input 'ingress' Subnet ID for ap-northeast-1c
     Type : AWS::EC2::Subnet::Id
+    
 # Backend loadbalancer
   BackendHost:
     Description : Input DNS A record of backend ALB
@@ -31,11 +57,11 @@ Resources:
   sbcntrECSClusterFrontend:
     Type: AWS::ECS::Cluster
     Properties:
-      ClusterName: !Sub "${Prefix}-frontend-cluster"
+      ClusterName: !Sub "${Env}-${Stack}-frontend-cluster"
   sbcntrTaskDefinitionFrontend:
     Type: AWS::ECS::TaskDefinition
     Properties:
-      Family: !Sub "${Prefix}-frontend-def"
+      Family: !Sub "${Env}-${Stack}-frontend-def"
       ContainerDefinitions:
         - Name: app
           Image: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/sbcntr-frontend:v1"
@@ -56,9 +82,9 @@ Resources:
           LogConfiguration:
               LogDriver: awslogs
               Options: 
-                awslogs-group: !Sub "/ecs/${Prefix}-frontend-def"
+                awslogs-group: !Sub "/ecs/${Env}-${Stack}-frontend-def"
                 awslogs-region: !Ref AWS::Region
-                awslogs-stream-prefix: ecs
+                awslogs-stream-Stack: ecs
       Cpu: 512
       Memory: 1024
       ExecutionRoleArn: !Sub "arn:aws:iam::${AWS::AccountId}:role/ecsTaskExecutionRole"
@@ -76,7 +102,7 @@ Resources:
   sbcntrAlbFrontend:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:
-      Name: !Sub "${Prefix}-alb-ingress-frontend"
+      Name: !Sub "${Env}-${Stack}-alb-ingress-frontend"
       Type: application
       Scheme: internet-facing
       SecurityGroups:
@@ -90,7 +116,7 @@ Resources:
   sbcntrTargetGroupFrontend:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
-      Name: !Sub "${Prefix}-tg-frontend"
+      Name: !Sub "${Env}-${Stack}-tg-frontend"
       Port: 80
       Protocol: HTTP
       TargetType: ip

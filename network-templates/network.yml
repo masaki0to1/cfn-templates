@@ -423,7 +423,7 @@ Resources:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Security Group for internet
-      GroupName: ingress
+      GroupName: ${Env}-${Stack}-ingress
       SecurityGroupEgress:
         - CidrIp: 0.0.0.0/0
           Description: Allow all outbound traffic by default
@@ -457,7 +457,7 @@ Resources:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Security Group for Management Server
-      GroupName: management-egress
+      GroupName: ${Env}-${Stack}-management-egress
       SecurityGroupEgress:
         - CidrIp: 0.0.0.0/0
           Description: Allow all outbound traffic by default
@@ -480,7 +480,7 @@ Resources:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Security Group for Backend Container App
-      GroupName: backend-container-egress
+      GroupName: ${Env}-${Stack}-backend-container-egress
       SecurityGroupEgress:
         - CidrIp: 0.0.0.0/0
           Description: Allow all outbound traffic by default
@@ -503,7 +503,7 @@ Resources:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Security Group for Frontend Container App
-      GroupName: frontend-container-egress
+      GroupName: ${Env}-${Stack}-frontend-container-egress
       SecurityGroupEgress:
         - CidrIp: 0.0.0.0/0
           Description: Allow all outbound traffic by default
@@ -526,7 +526,7 @@ Resources:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Security Group for Internal Load Balancer
-      GroupName: internal-load-balancer-egress
+      GroupName: ${Env}-${Stack}-internal-load-balancer-egress
       SecurityGroupEgress:
         - CidrIp: 0.0.0.0/0
           Description: Allow all outbound traffic by default
@@ -549,7 +549,7 @@ Resources:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Security Group for database
-      GroupName: database-egress
+      GroupName: ${Env}-${Stack}-database-egress
       SecurityGroupEgress:
         - CidrIp: 0.0.0.0/0
           Description: Allow all outbound traffic by default
@@ -572,7 +572,7 @@ Resources:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Security Group for VPC endpoint
-      GroupName: vpc-endpoint-egress
+      GroupName: ${Env}-${Stack}-vpc-endpoint-egress
       SecurityGroupEgress:
         - CidrIp: 0.0.0.0/0
           Description: Allow all outbound traffic by default
