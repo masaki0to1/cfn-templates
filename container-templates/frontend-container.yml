@@ -1,7 +1,6 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: Create frontend base
 
-################# Input parameters ###############
 Parameters:
   Env:
     Description: Specify the Env Tag. 
@@ -29,36 +28,37 @@ Parameters:
     ConstraintDescription: This Parameter must match pattern ^[a-z]([\-]{0.1}[a-z0-9]+)*$
 
   VpcId:
-    Description : Input 'sbcntr' VPC ID
+    Description : Enter the VPC ID.
     Type: AWS::EC2::VPC::Id
 
-# ALB 
-  ALBSecurityGroupId:
-    Description: Input 'ingress' SecurityGroup ID
+  SecurityGroupIdAlb:
+    Description: Enter the 'ingress' SecurityGroup ID
     Type: AWS::EC2::SecurityGroup::Id
 
-  ALBSubnetId1:
-    Description : Input 'ingress' Subnet ID for ap-northeast-1a
+  SubnetId1Alb:
+    Description : Enter the 'ingress' Subnet ID for ap-northeast-1a
     Type : AWS::EC2::Subnet::Id
 
-  ALBSubnetId2:
-    Description : Input 'ingress' Subnet ID for ap-northeast-1c
+  SubnetId2Alb:
+    Description : Enter the 'ingress' Subnet ID for ap-northeast-1c
     Type : AWS::EC2::Subnet::Id
     
 # Backend loadbalancer
-  BackendHost:
-    Description : Input DNS A record of backend ALB
+  DnsBackendAlb:
+    Description : Enter the DNS A record of Backend ALB
     Type: String
     Default: internal-sbcntr-alb-internal-XXXXXXXXX.ap-northeast-1.elb.amazonaws.com
 
 
 Resources:
-  ############### ECS ###############
-  sbcntrECSClusterFrontend:
+#-----------------------------------#
+# ECS
+#-----------------------------------#
+  ClusterFrontend:
     Type: AWS::ECS::Cluster
     Properties:
       ClusterName: !Sub "${Env}-${Stack}-frontend-cluster"
-  sbcntrTaskDefinitionFrontend:
+  TaskDefinitionFrontend:
     Type: AWS::ECS::TaskDefinition
     Properties:
       Family: !Sub "${Env}-${Stack}-frontend-def"
@@ -76,9 +76,9 @@ Resources:
             - Name: SESSION_SECRET_KEY
               Value: 41b678c65b37bf99c37bcab522802760
             - Name: APP_SERVICE_HOST
-              Value: !Sub "http://${BackendHost}"
+              Value: !Sub "http://${DnsBackendAlb}"
             - Name: NOTIF_SERVICE_HOST
-              Value: !Sub "http://${BackendHost}"
+              Value: !Sub "http://${DnsBackendAlb}"
           LogConfiguration:
               LogDriver: awslogs
               Options: 
@@ -106,10 +106,10 @@ Resources:
       Type: application
       Scheme: internet-facing
       SecurityGroups:
-        - !Ref ALBSecurityGroupId
+        - !Ref SecurityGroupIdAlb
       Subnets:
-        - !Ref ALBSubnetId1
-        - !Ref ALBSubnetId2
+        - !Ref SubnetId1Alb
+        - !Ref SubnetId2Alb
       LoadBalancerAttributes:
         - Key: deletion_protection.enabled
           Value: false
