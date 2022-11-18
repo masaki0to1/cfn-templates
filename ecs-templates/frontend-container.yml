@@ -1,6 +1,23 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: Create frontend base
 
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      -
+        Label:
+          default: System Configuration
+        Parameters:
+          - Env
+          - Stack
+          - Owner
+
+    ParameterLabels:
+      Stack:
+        default: 'Stack: *Only lowercase alphanumeric characters and hyphens are allowed.'
+      Owner:
+        default: 'Owner: *Only lowercase alphanumeric characters and hyphens are allowed. Please put a hyphen between your first name and last name.'
+
 Parameters:
   Env:
     Description: Specify the Env Tag. 
@@ -27,28 +44,25 @@ Parameters:
     AllowedPattern: ^[a-z]([\-]{0,1}[a-z0-9]+)*$
     ConstraintDescription: This Parameter must match pattern ^[a-z]([\-]{0.1}[a-z0-9]+)*$
 
-  VpcId:
-    Description : Enter the VPC ID.
+  IdVpc:
+    Description : Specify the VPC ID.
     Type: AWS::EC2::VPC::Id
 
-  SecurityGroupIdAlb:
-    Description: Enter the 'ingress' SecurityGroup ID
+  IdSecurityGroup:
+    Description: Specify the 'ingress' SecurityGroup ID
     Type: AWS::EC2::SecurityGroup::Id
 
-  SubnetId1Alb:
-    Description : Enter the 'ingress' Subnet ID for ap-northeast-1a
+  IdSubnetPublicIngress1A:
+    Description : Specify the 'ingress' Subnet ID for ap-northeast-1a
     Type : AWS::EC2::Subnet::Id
 
-  SubnetId2Alb:
-    Description : Enter the 'ingress' Subnet ID for ap-northeast-1c
+  IdSubnetPublicIngress1C:
+    Description : Specify the 'ingress' Subnet ID for ap-northeast-1c
     Type : AWS::EC2::Subnet::Id
     
-# Backend loadbalancer
-  DnsBackendAlb:
-    Description : Enter the DNS A record of Backend ALB
+  DnsAlbBackend:
+    Description : Specify the DNS A record of the Backend ALB.
     Type: String
-    Default: internal-sbcntr-alb-internal-XXXXXXXXX.ap-northeast-1.elb.amazonaws.com
-
 
 Resources:
 #-----------------------------------#
@@ -57,14 +71,23 @@ Resources:
   ClusterFrontend:
     Type: AWS::ECS::Cluster
     Properties:
-      ClusterName: !Sub "${Env}-${Stack}-frontend-cluster"
+      ClusterName: !Sub ${Env}-${Stack}-frontend-cluster
+      Tags:
+        - Key: Env
+          Value: !Ref Env
+        - Key: Stack
+          Value: !Ref Stack
+        - Key: Owner
+          Value: !Ref Owner
+
   TaskDefinitionFrontend:
     Type: AWS::ECS::TaskDefinition
     Properties:
-      Family: !Sub "${Env}-${Stack}-frontend-def"
+      Family: !Sub ${Env}-${Stack}-frontend-task-definition
       ContainerDefinitions:
-        - Name: app
-          Image: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/sbcntr-frontend:v1"
+        - 
+          Name: app
+          Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/sbcntr-frontend:v1"
           Essential: true
           Cpu: 256
           MemoryReservation: 512
@@ -76,9 +99,9 @@ Resources:
             - Name: SESSION_SECRET_KEY
               Value: 41b678c65b37bf99c37bcab522802760
             - Name: APP_SERVICE_HOST
-              Value: !Sub "http://${DnsBackendAlb}"
+              Value: !Sub "http://${DnsAlbBackend}"
             - Name: NOTIF_SERVICE_HOST
-              Value: !Sub "http://${DnsBackendAlb}"
+              Value: !Sub "http://${DnsAlbBackend}"
           LogConfiguration:
               LogDriver: awslogs
               Options: 
@@ -91,32 +114,58 @@ Resources:
       NetworkMode: awsvpc
       RequiresCompatibilities:
         - FARGATE
-  sbcntrCloudWatchLogsFrontend:
+      Tags:
+        - Key: Env
+          Value: !Ref Env
+        - Key: Stack
+          Value: !Ref Stack
+        - Key: Owner
+          Value: !Ref Owner
+
+  CloudWatchLogsFrontend:
     Type: AWS::Logs::LogGroup
+    UpdateReplacePolicy: Retain
     Properties:
       LogGroupName: /ecs/sbcntr-frontend-def
       RetentionInDays: 14
-    UpdateReplacePolicy: Retain
-
-  ############### Application Load Balancer ###############    
-  sbcntrAlbFrontend:
+      Tags:
+        - Key: Env
+          Value: !Ref Env
+        - Key: Stack
+          Value: !Ref Stack
+        - Key: Owner
+          Value: !Ref Owner
+#-----------------------------------#
+# ALB
+#-----------------------------------#
+  AlbFrontend:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:
       Name: !Sub "${Env}-${Stack}-alb-ingress-frontend"
       Type: application
       Scheme: internet-facing
       SecurityGroups:
-        - !Ref SecurityGroupIdAlb
+        - !Ref IdSecurityGroup
       Subnets:
-        - !Ref SubnetId1Alb
-        - !Ref SubnetId2Alb
+        - !Ref IdSubnetPublicIngress1A
+        - !Ref IdSubnetPublicIngress1C
       LoadBalancerAttributes:
         - Key: deletion_protection.enabled
           Value: false
-  sbcntrTargetGroupFrontend:
+      Tags:
+        - Key: Env
+          Value: !Ref Env
+        - Key: Stack
+          Value: !Ref Stack
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: Cost
+          Value: !Ref Cost
+
+  TargetGroupFrontend:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
-      Name: !Sub "${Env}-${Stack}-tg-frontend"
+      Name: !Sub "${Env}-${Stack}-target-group-frontend"
       Port: 80
       Protocol: HTTP
       TargetType: ip
@@ -127,13 +176,21 @@ Resources:
       UnhealthyThresholdCount: 2
       Matcher: 
         HttpCode: 200
-      VpcId: !Ref VpcId
-  sbcntrFrontendListener1:
+      VpcId: !Ref IdVpc
+      Tags:
+        - Key: Env
+          Value: !Ref Env
+        - Key: Stack
+          Value: !Ref Stack
+        - Key: Owner
+          Value: !Ref Owner
+  
+  ListenerFrontend:
     Type: AWS::ElasticLoadBalancingV2::Listener
     Properties:
         DefaultActions: 
-          - TargetGroupArn: !Ref sbcntrTargetGroupFrontend
+          - TargetGroupArn: !Ref TargetGroupFrontend
             Type: forward
-        LoadBalancerArn: !Ref sbcntrAlbFrontend
+        LoadBalancerArn: !Ref AlbFrontend
         Port: 80
         Protocol: HTTP

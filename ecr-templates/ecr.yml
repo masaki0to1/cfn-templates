@@ -1,0 +1,116 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Provides ECR Resource.
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      -
+        Label:
+          default: System Configuration
+        Parameters:
+          - Env
+          - Stack
+          - Owner
+      -
+        Label:
+          default: ECR Configuration
+        Parameters:
+          - RepositoryName
+          - EnableEncryption
+          - KmsKey
+          - EnableScanOnPush
+          - ImageTagMutablity
+
+    ParameterLabels:
+      Stack:
+        default: 'Stack: *Only lowercase alphanumeric characters and hyphens are allowed.'
+      Owner:
+        default: 'Owner: *Only lowercase alphanumeric characters and hyphens are allowed. Please put a hyphen between your first name and last name.'
+      RepositoryName:
+        default: 'RepositoryName: *Only lowercase alphanumeric characters and hyphens are allowed. (e.g., ecr-repository-backend)'
+      EnableEncryption:
+        default: 'EnableEncryption: *This parameter cannot be changed after the repository is created.'
+      KmsKey:
+        default: 'KmsKey: (Optional)'
+
+Parameters: 
+  Env:
+    Description: Specify the Env Tag. 
+    Type: String
+    Default: dev
+    AllowedValues:
+      - prod
+      - stage
+      - test
+      - dev
+      - common
+
+  Stack:
+    Description: Specify the Stack Tag.
+    Type: String
+    Default: container
+    AllowedPattern: ^[a-z]([\-]{0,1}[a-z0-9]+)*$
+    ConstraintDescription: This Parameter must match pattern ^[a-z]([\-]{0.1}[a-z0-9]+)*$
+
+  Owner:
+    Description: Enter the name of the Person creating this Stack.
+    Type: String
+    Default: masaki-ishimoto
+    AllowedPattern: ^[a-z]([\-]{0,1}[a-z0-9]+)*$
+    ConstraintDescription: This Parameter must match pattern ^[a-z]([\-]{0.1}[a-z0-9]+)*$
+
+  RepositoryName:
+    Description: Enter the name of the ECR Repository for this Stack.
+    Type: String
+    Default: ecr-repository
+    AllowedPattern: ^[a-z]([\-]{0,1}[a-z0-9]+)*$
+    ConstraintDescription: This Parameter must match pattern ^[a-z]([\-]{0.1}[a-z0-9]+)*$
+
+  EnableKmsEncryption:
+    Description: Specify true to encrypt with KMS Key.
+    Type: String
+    Default: true
+    AllowedValues: [ true, false ]
+  
+  KmsKey:
+    Description: Specify the Arn, ID or Alias of the AWS KMS key to use for encryption. If no key is specified, the default AWS managed AWS KMS key for Amazon ECR will be used. 
+    Type: String
+
+  EnableScanOnPush:
+    Description: Specify true to enable scanning on push.
+    Type: String
+    Default: false
+    AllowedValues: [ true, false ]
+
+  ImageTagMutability:
+    Description: Specify MUTABLE to enable ImageTagMutability.
+    Type: String
+    Default: MUTABLE
+    AllowedValues: [ MUTABLE, IMMUTABLE ]
+
+Conditions:
+  EncryptWithKmsKey: !Equals [ !Ref EnableKmsEncryption, true ]
+  SpecifyKmsKey: !Not [ !Equals [ !Ref KmsKey, '' ] ]
+
+Resources: 
+  EcrRepository:
+    Type: AWS::ECR::Repository
+    Properties: 
+      EncryptionConfiguration: 
+        EncryptionType: !If [ EncryptWithKmsKey, KMS, AES256 ]
+        KmsKey: !If [ SpecifyKmsKey, !Ref KmsKey, !Ref AWS::NoValue ]
+      ImageScanningConfiguration: 
+        ScanOnPush: !Ref EnableScanOnPush 
+      ImageTagMutability: !Ref ImageTagMutability
+      RepositoryName: !Sub ${Env}-${Stack}-${RepositoryName}
+      Tags:
+        - Key: Env
+          Value: !Ref Env
+        - Key: Stack
+          Value: !Ref Stack
+        - Key: Owner
+          Value: !Ref Owner
+
+Outputs:
+  ArnEcrRepository:
+    Value: !GetAtt EcrRepository.Arn

@@ -703,3 +703,13 @@ Resources:
       GroupId: !GetAtt SecurityGroupVpcEndpoint.GroupId
       SourceSecurityGroupId: !GetAtt SecurityGroupManagement.GroupId
       ToPort: 443
+
+Outputs:
+  IdVpc:
+    Value: !Ref Vpc
+  IdSubnetPublicIngress1A:
+    Value: !Ref SubnetPublicIngress1A
+  IdSubnetPublicIngress1C:
+    Value: !Ref SubnetPublicIngress1C
+  IdSecurityGroupInternet:
+    Value: !GetAtt SecurityGroupInternet.GroupId
