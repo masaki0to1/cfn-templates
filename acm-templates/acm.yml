@@ -1,0 +1,23 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: ---
+Metadata: 
+
+Parameters: 
+
+Mappings: 
+
+Conditions: 
+
+Resources: 
+  CertificateAlb:
+    Type: AWS::CertificateManager::Certificate
+    Properties: 
+      CertificateTransparencyLoggingPreference: ENABLED
+      DomainName: String
+      DomainValidationOptions: 
+        - DomainValidationOption
+      ValidationMethod: DNS
+      Tags: 
+        - Tag
+
+Outputs:

@@ -1,0 +1,65 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Provides S3 Bucket resource.
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      -
+        Label:
+          default: System Configuration
+        Parameters:
+          - Env
+          - Stack
+          - Owner
+
+    ParameterLabels:
+      Stack:
+        default: 'Stack: *Only lowercase alphanumeric characters and hyphens are allowed.'
+      Owner:
+        default: 'Owner: *Only lowercase alphanumeric characters and hyphens are allowed. Please put a hyphen between your first name and last name.'
+
+Parameters:
+  Env:
+    Description: Specify the Env Tag. 
+    Type: String
+    Default: dev
+    AllowedValues:
+      - prod
+      - stage
+      - test
+      - dev
+      - common
+
+  Stack:
+    Description: Specify the Stack Tag.
+    Type: String
+    Default: endpoint
+    AllowedPattern: ^[a-z]([\-]{0,1}[a-z0-9]+)*$
+    ConstraintDescription: This Parameter must match pattern ^[a-z]([\-]{0.1}[a-z0-9]+)*$
+
+  Owner:
+    Description: Enter the name of the person creating this stack.
+    Type: String
+    Default: masaki-ishimoto
+    AllowedPattern: ^[a-z]([\-]{0,1}[a-z0-9]+)*$
+    ConstraintDescription: This Parameter must match pattern ^[a-z]([\-]{0.1}[a-z0-9]+)*$
+
+Resources: 
+  S3BucketCfnTemplates:
+    DeletionPolicy: Retain
+    Type: AWS::S3::Bucket
+    Properties: 
+      BucketName: !Sub ${Env}-${Stack}-cfn-templates-bucket-${AWS::AccountId}
+      Tags:
+        - Key: Env
+          Value: !Ref Env
+        - Key: Stack
+          Value: !Ref Stack
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: Cost
+          Value: !Sub ${Env}-${Stack}
+
+Outputs:
+  NameS3BucketCfnTemplates: 
+    Value: !Ref S3BucketCfnTemplates

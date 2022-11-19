@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: Create frontend base
+Description: Provides frontend base.
 
 Metadata:
   AWS::CloudFormation::Interface:
@@ -48,20 +48,20 @@ Parameters:
     Description : Specify the VPC ID.
     Type: AWS::EC2::VPC::Id
 
-  IdSecurityGroup:
-    Description: Specify the 'ingress' SecurityGroup ID
+  IdSecurityGroupInternet:
+    Description:  Specify the SecurityGroup ID for ALB.
     Type: AWS::EC2::SecurityGroup::Id
 
   IdSubnetPublicIngress1A:
-    Description : Specify the 'ingress' Subnet ID for ap-northeast-1a
-    Type : AWS::EC2::Subnet::Id
+    Description: Specify the IngressPublicSubnet1A ID for ALB.
+    Type: AWS::EC2::Subnet::Id
 
   IdSubnetPublicIngress1C:
-    Description : Specify the 'ingress' Subnet ID for ap-northeast-1c
-    Type : AWS::EC2::Subnet::Id
+    Description: Specify the IngressPublicSubnet1C ID for ALB.
+    Type: AWS::EC2::Subnet::Id
     
   DnsAlbBackend:
-    Description : Specify the DNS A record of the Backend ALB.
+    Description: Specify the DNS A record of the Backend ALB.
     Type: String
 
 Resources:
@@ -145,7 +145,7 @@ Resources:
       Type: application
       Scheme: internet-facing
       SecurityGroups:
-        - !Ref IdSecurityGroup
+        - !Ref IdSecurityGroupInternet
       Subnets:
         - !Ref IdSubnetPublicIngress1A
         - !Ref IdSubnetPublicIngress1C

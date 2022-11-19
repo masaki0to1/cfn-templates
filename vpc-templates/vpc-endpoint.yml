@@ -1,0 +1,185 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Provides VPC Endpoint resource.
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      -
+        Label:
+          default: System Configuration
+        Parameters:
+          - Env
+          - Stack
+          - Owner
+      - 
+        Label: 
+          default: VPC Endpoint Common Configuration
+        Parameters:
+          - IdVpc
+      -
+        Label:
+          default: Interface type VPC Endpoint Configuration
+        Parameters:
+          - IdSubnetPrivateEgress1A
+          - IdSubnetPrivateEgress1C
+          - IdSecurityGroupVpcEndpoint
+      -
+        Label:
+          default: Gateway type VPC Endpoint Configuration
+        Parameters:
+          - IdRouteTableContainerApp
+      - 
+        Label:
+          default: VPC Endpoint Configuration for ECR
+        Parameters:
+          - CreateEndpointEcr
+      -
+        Label:
+          default: VPC Endpoint Configuration for CloudWatchLogs
+        Parameters:
+          - CreateEndpointCloudWatchLogs
+      -
+        Label:
+          default: VPC Endpoint Configuration for S3
+        Parameters:
+          - CreateEndpointS3
+
+    ParameterLabels:
+      Stack:
+        default: 'Stack: *Only lowercase alphanumeric characters and hyphens are allowed.'
+      Owner:
+        default: 'Owner: *Only lowercase alphanumeric characters and hyphens are allowed. Please put a hyphen between your first name and last name.'
+
+Parameters:
+  Env:
+    Description: Specify the Env Tag. 
+    Type: String
+    Default: dev
+    AllowedValues:
+      - prod
+      - stage
+      - test
+      - dev
+      - common
+
+  Stack:
+    Description: Specify the Stack Tag.
+    Type: String
+    Default: endpoint
+    AllowedPattern: ^[a-z]([\-]{0,1}[a-z0-9]+)*$
+    ConstraintDescription: This Parameter must match pattern ^[a-z]([\-]{0.1}[a-z0-9]+)*$
+
+  Owner:
+    Description: Enter the name of the person creating this stack.
+    Type: String
+    Default: masaki-ishimoto
+    AllowedPattern: ^[a-z]([\-]{0,1}[a-z0-9]+)*$
+    ConstraintDescription: This Parameter must match pattern ^[a-z]([\-]{0.1}[a-z0-9]+)*$
+
+  CreateEndpointEcr:
+    Description: Create VPC Endpoints for ECR?
+    Type: String
+    Default: true
+    AllowedValues: [ true, false ]
+
+  CreateEndpointS3:
+    Description: Create a VPC Endpoint for S3?
+    Type: String
+    Default: true
+    AllowedValues: [ true, false ]
+
+  CreateEndpointCloudWatchLogs:
+    Description: Create a VPC Endpoint for CloudWatchLogs?
+    Type: String
+    Default: true
+    AllowedValues: [ true, false ]
+
+  IdVpc:
+    Description: Specify the VPC ID for ECR VPC Endpoint.
+    Type: AWS::EC2::VPC::Id
+
+  IdSecurityGroupVpcEndpoint:
+    Description: Specify the SecurityGroup ID for ECR VPC Endpoint.
+    Type: AWS::EC2::SecurityGroup::Id
+
+  IdSubnetPrivateEgress1A:
+    Description: Specify the EgressPrivateSubnet1A ID for ECR VPC Endpoint.
+    Type: AWS::EC2::Subnet::Id
+  
+  IdSubnetPrivateEgress1C:
+    Description: Specify the EgressPrivateSubnet1C ID for ECR VPC Endpoint.
+    Type: AWS::EC2::Subnet::Id
+
+  IdRouteTableContainerApp:
+    Description: Specify the Route Table ID for S3 VPC Endpoint. 
+    Type: String
+
+Conditions:
+  CreateEndpointEcr: !Equals [ !Ref CreateEndpointEcr, 'true' ]
+  CreateEndpointS3: !Equals [ !Ref CreateEndpointS3, 'true' ]
+  CreateEndpointCloudWatchLogs: !Equals [ !Ref CreateEndpointCloudWatchLogs, 'true' ]
+
+Resources: 
+#-----------------------------------------#
+# VPC Endpoint
+#-----------------------------------------#
+  # Interface Endpoint
+  VpcEndpointEcrApi:
+    Condition: CreateEndpointEcr
+    Type: AWS::EC2::VPCEndpoint
+    Properties: 
+      PrivateDnsEnabled: true
+      SecurityGroupIds: 
+        - !Ref IdSecurityGroupVpcEndpoint
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.ecr.api
+      SubnetIds: 
+        - !Ref IdSubnetPrivateEgress1A
+        - !Ref IdSubnetPrivateEgress1C
+      VpcEndpointType: Interface
+      VpcId: !Ref IdVpc
+
+  VpcEndpointEcrDkr:
+    Condition: CreateEndpointEcr
+    Type: AWS::EC2::VPCEndpoint
+    Properties: 
+      PrivateDnsEnabled: true
+      SecurityGroupIds: 
+        - !Ref IdSecurityGroupVpcEndpoint
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.ecr.dkr
+      SubnetIds: 
+        - !Ref IdSubnetPrivateEgress1A
+        - !Ref IdSubnetPrivateEgress1C
+      VpcEndpointType: Interface
+      VpcId: !Ref IdVpc
+
+  VpcEndpointCloudWatchLogs:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      PrivateDnsEnabled: true
+      SecurityGroupIds:
+        - !Ref IdSecurityGroupVpcEndpoint
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.logs
+      SubnetIds:
+        - !Ref IdSubnetPrivateEgress1A
+        - !Ref IdSubnetPrivateEgress1C
+      VpcEndpointType: Interface
+      VpcId: !Ref IdVpc
+
+  # Gateway Endpoint
+  VpcEndpointS3:
+    Condition: CreateEndpointS3
+    Type: AWS::EC2::VPCEndpoint
+    Properties: 
+      RouteTableIds:
+        - !Ref IdRouteTableContainerApp
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.s3
+      VpcEndpointType: Gateway
+      VpcId: !Ref IdVpc
+
+Outputs:
+  IdVpcEndpointEcrApi:
+    Value: !Ref VpcEndpointEcrApi
+  IdVpcEndpointEcrDkr:
+    Value: !Ref VpcEndpointEcrDkr
+  IdVpcEndpointS3:
+    Value: !Ref VpcEndpointS3

@@ -1,6 +1,23 @@
 AWSTemplateFormatVersion: 2010-09-09
 Description: Provides Network resource.
 
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      -
+        Label:
+          default: System Configuration
+        Parameters:
+          - Env
+          - Stack
+          - Owner
+
+    ParameterLabels:
+      Stack:
+        default: 'Stack: *Only lowercase alphanumeric characters and hyphens are allowed.'
+      Owner:
+        default: 'Owner: *Only lowercase alphanumeric characters and hyphens are allowed. Please put a hyphen between your first name and last name.'
+
 Parameters:
   Env:
     Description: Specify the Env Tag. 
@@ -63,10 +80,6 @@ Resources:
     Type: AWS::EC2::Subnet
     Properties:
       AvailabilityZone: !Select [0, !GetAZs ''] # Specify ap-northeast-1a
-      # AvailabilityZone: !Select [0, Fn::GetAZs: !Ref 'AWS::Region']
-        # Fn::Select: 
-        #   - 0
-        #   - Fn::GetAZs: ""
       CidrBlock: !Select [8, !Cidr [!GetAtt Vpc.CidrBlock, 9, 8]] # Specify 10.0.8.0/24
       MapPublicIpOnLaunch: false
       VpcId: !Ref Vpc
@@ -86,9 +99,6 @@ Resources:
     Type: AWS::EC2::Subnet
     Properties:
       AvailabilityZone: !Select [1, !GetAZs ''] # Specify ap-northeast-1c
-        # Fn::Select: 
-        #   - 1
-        #   - Fn::GetAZs: ""
       CidrBlock: !Select [9, !Cidr [!GetAtt Vpc.CidrBlock, 10, 8]] # Specify 10.0.9.0/24
       MapPublicIpOnLaunch: false
       VpcId: !Ref Vpc
@@ -108,9 +118,6 @@ Resources:
     Type: AWS::EC2::Subnet
     Properties:
       AvailabilityZone: !Select [0, !GetAZs ''] 
-        # Fn::Select: 
-        #   - 0
-        #   - Fn::GetAZs: ""
       CidrBlock: !Select [16, !Cidr [!GetAtt Vpc.CidrBlock, 17, 8]] # Specify 10.0.16.0/24
       MapPublicIpOnLaunch: false
       VpcId: !Ref Vpc
@@ -130,9 +137,6 @@ Resources:
     Type: AWS::EC2::Subnet
     Properties:
       AvailabilityZone: !Select [1, !GetAZs ''] 
-        # Fn::Select: 
-        #   - 1
-        #   - Fn::GetAZs: ""
       CidrBlock: !Select [17, !Cidr [!GetAtt Vpc.CidrBlock, 18, 8]] # Spcecify 10.0.17.0/24
       MapPublicIpOnLaunch: false
       VpcId: !Ref Vpc
@@ -193,9 +197,6 @@ Resources:
     Type: AWS::EC2::Subnet
     Properties:
       AvailabilityZone: !Select [0, !GetAZs ''] 
-        # Fn::Select: 
-        #   - 0
-        #   - Fn::GetAZs: ""
       CidrBlock: !Select [0, !Cidr [!GetAtt Vpc.CidrBlock, 1, 8]] # Specify 10.0.0.0/24
       MapPublicIpOnLaunch: true
       VpcId: !Ref Vpc
@@ -215,9 +216,6 @@ Resources:
     Type: AWS::EC2::Subnet
     Properties:
       AvailabilityZone: !Select [1, !GetAZs '']
-        # Fn::Select: 
-        #   - 1
-          # - Fn::GetAZs: ""
       CidrBlock: !Select [1, !Cidr [!GetAtt Vpc.CidrBlock, 2, 8]] # Specify 10.0.1.0/24
       VpcId: !Ref Vpc
       MapPublicIpOnLaunch: true
@@ -237,9 +235,6 @@ Resources:
     Type: AWS::EC2::Subnet
     Properties:
       AvailabilityZone: !Select [0, !GetAZs '']
-        # Fn::Select: 
-        #   - 0
-        #   - Fn::GetAZs: ""
       CidrBlock: !Select [240, !Cidr [!GetAtt Vpc.CidrBlock, 241, 8]] # Specify 10.0.240.0/24
       MapPublicIpOnLaunch: true
       VpcId: !Ref Vpc
@@ -259,9 +254,6 @@ Resources:
     Type: AWS::EC2::Subnet
     Properties:
       AvailabilityZone: !Select [1, !GetAZs '']
-        # Fn::Select: 
-        #   - 1
-        #   - Fn::GetAZs: ""
       CidrBlock: !Select [241, !Cidr [!GetAtt Vpc.CidrBlock, 242, 8]] # Specify 10.0.241.0/24
       MapPublicIpOnLaunch: true
       VpcId: !Ref Vpc
@@ -450,7 +442,7 @@ Resources:
         - Key: Cost
           Value: !Sub ${Env}-${Stack}
         - Key: Name
-          Value: securitygroup-ingress
+          Value: securitygroup-internet-ingress
   
   # Security Group for Management Server
   SecurityGroupManagementServer:
@@ -701,7 +693,7 @@ Resources:
       Description: HTTPS for Management Server
       FromPort: 443
       GroupId: !GetAtt SecurityGroupVpcEndpoint.GroupId
-      SourceSecurityGroupId: !GetAtt SecurityGroupManagement.GroupId
+      SourceSecurityGroupId: !GetAtt SecurityGroupManagementServer.GroupId
       ToPort: 443
 
 Outputs:
@@ -711,5 +703,13 @@ Outputs:
     Value: !Ref SubnetPublicIngress1A
   IdSubnetPublicIngress1C:
     Value: !Ref SubnetPublicIngress1C
+  IdSubnetPrivateEgress1A:
+    Value: !Ref SubnetPrivateEgress1A
+  IdSubnetPrivateEgress1C:
+    Value: !Ref SubnetPrivateEgress1C
   IdSecurityGroupInternet:
     Value: !GetAtt SecurityGroupInternet.GroupId
+  IdSecurityGroupVpcEndpoint:
+    Value: !GetAtt SecurityGroupVpcEndpoint.GroupId
+  IdRouteTableContainerApp:
+    Value: !Ref RouteTableContainerApp
