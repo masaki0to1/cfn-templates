@@ -15,9 +15,9 @@ Metadata:
         Label: 
           default: ALB Configuration
         Parameters:
-          - IdSecurityGroupInternalLoadBalancer
           - IdSubnetPrivateContainer1A
           - IdSubnetPrivateContainer1C
+          - IdSecurityGroupInternalLoadBalancer
       - 
         Label:
           default: ALB TargetGroups Configuration
@@ -60,10 +60,6 @@ Parameters:
     Description: Specify the VPC ID for ALB TargetGroups.
     Type: AWS::EC2::VPC::Id
 
-  IdSecurityGroupInternalLoadBalancer:
-    Description: Specify the SecurityGroup ID for Internal Load Balancer.
-    Type: AWS::EC2::SecurityGroup::Id
-  
   IdSubnetPrivateContainer1A:
     Description: Specify the ContainerPrivateSubnet1A ID for Internal Load Balancer.
     Type: AWS::EC2::Subnet::Id
@@ -72,6 +68,10 @@ Parameters:
     Description: Specify the ContainerPrivateSubnet1C ID for Internal Load Balancer.
     Type: AWS::EC2::Subnet::Id
 
+  IdSecurityGroupInternalLoadBalancer:
+    Description: Specify the SecurityGroup ID for Internal Load Balancer.
+    Type: AWS::EC2::SecurityGroup::Id
+  
 Resources: 
 #-------------------------------------#
 # ALB
@@ -82,7 +82,7 @@ Resources:
       Name: !Sub ${Env}-${Stack}-alb-internal
       IpAddressType: ipv4
       LoadBalancerAttributes: 
-        - Key: deletion_protection.enalbed
+        - Key: deletion_protection.enabled
           Value: false
         - Key: load_balancing.cross_zone.enabled
           Value: true
@@ -90,8 +90,8 @@ Resources:
           Value: false
         # - Key: access_logs.s3.bucket
           # Value: !Ref NameS3BucketAccessLogs
-        - Key: ipv6.deny_all_igw_traffic
-          Value: true
+        # - Key: ipv6.deny_all_igw_traffic #ipv6 only
+        #   Value: false
         - Key: idle_timeout.timeout_seconds 
           Value: 5
         - Key: routing.http.desync_mitigation_mode 
@@ -134,12 +134,7 @@ Resources:
       #   - Certificate
       DefaultActions: 
         - Type: forward
-          ForwardConfig:
-            TargetGroups:
-              - TargetGroupArn: !Ref TargetGroupBlue
-                Weight: 1
-              - TargetGroupArn: !Ref TargetGroupGreen
-                Weight: 1
+          TargetGroupArn: !Ref TargetGroupBlue
       LoadBalancerArn: !Ref LoadBalancerApplication
       Port: 80
       Protocol: HTTP 
@@ -152,9 +147,7 @@ Resources:
       #   - Certificate
       DefaultActions: 
         - Type: forward
-          TargetGroups:
-            - TargetGroupArn: !Ref TargetGroupGreen
-              Weight: 1
+          TargetGroupArn: !Ref TargetGroupGreen
       LoadBalancerArn: !Ref LoadBalancerApplication
       Port: 10080
       Protocol: HTTP 

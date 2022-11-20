@@ -663,6 +663,17 @@ Resources:
       SourceSecurityGroupId: !GetAtt SecurityGroupManagementServer.GroupId
       GroupId: !GetAtt SecurityGroupInternalLoadBalancer.GroupId
 
+  # Management Server -> Internal LB
+  IngressInternalLoadBalancerFromManagement:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: Test port for Management Server
+      IpProtocol: tcp
+      FromPort: 10080
+      ToPort: 10080
+      SourceSecurityGroupId: !GetAtt SecurityGroupManagementServer.GroupId
+      GroupId: !GetAtt SecurityGroupInternalLoadBalancer.GroupId
+
   # Frontend container -> VPC endpoint
   IngressVpcEndpointFromFrontendContainer:
     Type: AWS::EC2::SecurityGroupIngress
