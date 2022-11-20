@@ -49,29 +49,116 @@ Parameters:
     Type: AWS::EC2::VPC::Id
 
   IdSecurityGroupInternet:
-    Description:  Specify the SecurityGroup ID for ALB.
+    Description:  Specify the ID of the InternetSecurityGroup for ALB.
     Type: AWS::EC2::SecurityGroup::Id
 
   IdSubnetPublicIngress1A:
-    Description: Specify the IngressPublicSubnet1A ID for ALB.
+    Description: Specify the ID of the IngressPublicSubnet1A for ALB.
     Type: AWS::EC2::Subnet::Id
 
   IdSubnetPublicIngress1C:
-    Description: Specify the IngressPublicSubnet1C ID for ALB.
+    Description: Specify the ID of the IngressPublicSubnet1C for ALB.
     Type: AWS::EC2::Subnet::Id
     
   DnsAlbBackend:
     Description: Specify the DNS A record of the Backend ALB.
     Type: String
 
+  NameFrontendContainer:
+    Description: Enter the Name for Frontend Container.
+    Type: String
+    Default: frontend-app
+  
+  PortFrontendContainer:
+    Description: Specify the Port Number for Frontend Container.
+    Type: String
+    Default: 80
+
+  ArnTargetGroupBlue:
+    Description: Specify the ARN of the TargetGroupBlue.
+    Type: String
+
+  ArnTargetGroupGreen:
+    Description: Specify the ARN of the TargetGroupGreen.
+    Type: String
+
+  IdSecurityGroupBackendContainer:
+    Description: Specify the ID of the BackendContainerSecurityGroup.
+    Type: AWS::EC2::SecurityGroup::Id
+  
+  IdSubnetPrivateContainer1A:
+    Description: Specify the ID of the ContainerPrivateSubnet1A for Container.
+    Type: AWS::EC2::Subnet::Id
+
+  IdSubnetPrivateContainer1C:
+    Description: Specify the ID of the ContainerPrivateSubnet1C for Container.
+    Type: AWS::EC2::Subnet::Id
+    
 Resources:
 #-----------------------------------#
 # ECS
 #-----------------------------------#
+
   ClusterFrontend:
     Type: AWS::ECS::Cluster
     Properties:
+      CapacityProviders:
+        - FARGATE
       ClusterName: !Sub ${Env}-${Stack}-frontend-cluster
+      ClusterSettings:
+        - Name: containerInsights
+          Value: enabled
+      Tags:
+        - Key: Env
+          Value: !Ref Env
+        - Key: Stack
+          Value: !Ref Stack
+        - Key: Owner
+          Value: !Ref Owner
+
+  ServiceFrontend:
+    Type: AWS::ECS::Service
+    Properties: 
+      CapacityProviderStrategy: 
+        - Base: 2
+          CapacityProvider: FARGATE
+          Weight: 1
+        - Base: 0
+          CapacityProvider: FARGATE_SPOT
+          Weight: 1
+      Cluster: !GetAtt ClusterFrontend.Arn
+      DeploymentController: CODE_DEPLOY
+      DesiredCount: 2
+      EnableECSManagedTags: true
+      EnableExecuteCommand: Boolean ######
+      HealthCheckGracePeriodSeconds: 120
+      LaunchType: FARGATE
+      LoadBalancers: 
+        - ContainerName: !Ref NameFrontendContainer
+          ContainerPort: !Ref PortFrontendContainer
+          TargetGroupArn: !Ref ArnTargetGroupBlue
+        - ContainerName: !Ref NameFrontendContainer
+          ContainerPort: !Ref PortFrontendContainer
+          TargetGroupArn: !Ref ArnTargetGroupGreen
+      NetworkConfiguration: 
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLE
+          SecurityGroups:
+            - !Ref IdSecurityGroupBackendContainer
+          Subnets:
+            - !Ref IdSubnetPrivateContainer1A
+            - !Ref IdSubnetPrivateContainer1C
+      # PlacementConstraints: 
+      #   - PlacementConstraint
+      # PlacementStrategies: 
+      #   - PlacementStrategy
+      PlatformVersion: 1.4.0
+      PropagateTags: NONE
+      SchedulingStrategy: REPLICA
+      ServiceName: ecs-frontend-service
+      ServiceRegistries: 
+        - !GetAtt ServiceDiscovery.Arn ####
+      TaskDefinition: !Ref TaskDefinitionFrontend
       Tags:
         - Key: Env
           Value: !Ref Env
@@ -86,13 +173,14 @@ Resources:
       Family: !Sub ${Env}-${Stack}-frontend-task-definition
       ContainerDefinitions:
         - 
-          Name: app
+          Name: !Ref NameFrontendContainer
           Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/sbcntr-frontend:v1"
           Essential: true
           Cpu: 256
           MemoryReservation: 512
+          ReadonlyRootFilesystem: true
           PortMappings:
-            - ContainerPort: 80
+            - ContainerPort: !Ref PortFrontendContainer
               HostPort: 80
               Protocol: tcp
           Environment:
@@ -135,6 +223,52 @@ Resources:
           Value: !Ref Stack
         - Key: Owner
           Value: !Ref Owner
+
+#-----------------------------------#
+# ServiceDiscovery (Cloud Map)
+#-----------------------------------#
+  ServiceDiscovery:
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Name: ecs-backend-service
+      Description: 'Service Discovery for ECS.'
+      DnsConfig:
+        DnsRecords:
+          - Type: A
+            TTL: 60
+        NamespaceId: !GetAtt ServiceDiscoveryPrivateDnsNamespace.Id
+      # HealthCheckConfig:
+      #   FailureThreshold: String
+      #   ResourcePath: "String"
+      #   Type: "String"
+      # HealthCheckCustomConfig:
+      #   FailureThreshold: String
+      Tags:
+        - Key: Env
+          Value: !Ref Env
+        - Key: Stack
+          Value: !Ref Stack
+        - Key: Owner
+          Value: !Ref Owner
+
+  ServiceDiscoveryPrivateDnsNamespace:
+    Type: AWS::ServiceDiscovery::PrivateDnsNamespace
+    Properties: 
+      Description: 'Service Discovery for ECS'
+      Name: local
+      # Properties: 
+      #   DnsProperties:
+      #     SOA:
+      #       TTL: 60            
+      Vpc: !Ref IdVpc
+      Tags:
+        - Key: Env
+          Value: !Ref Env
+        - Key: Stack
+          Value: !Ref Stack
+        - Key: Owner
+          Value: !Ref Owner
+
 #-----------------------------------#
 # ALB
 #-----------------------------------#

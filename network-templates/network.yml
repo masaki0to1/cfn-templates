@@ -722,5 +722,7 @@ Outputs:
     Value: !GetAtt SecurityGroupInternet.GroupId
   IdSecurityGroupVpcEndpoint:
     Value: !GetAtt SecurityGroupVpcEndpoint.GroupId
+  IdSecurityGroupBackendContainer:
+    Value: !GetAtt SecurityGroupBackendContainer.GroupId
   IdRouteTableContainerApp:
     Value: !Ref RouteTableContainerApp

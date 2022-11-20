@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: 2010-09-09
-Description: Provides ELB resource.
+Description: Provide ELB resources.
 
 Metadata:
   AWS::CloudFormation::Interface:
