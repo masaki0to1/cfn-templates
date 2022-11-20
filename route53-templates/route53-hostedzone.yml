@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: 2010-09-09
-Description: Provision Hosted Zone.
+Description: Provide Route53 resources.
 
 Metadata:
   AWS::CloudFormation::Interface:

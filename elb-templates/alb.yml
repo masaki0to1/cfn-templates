@@ -13,36 +13,16 @@ Metadata:
           - Owner
       - 
         Label: 
-          default: VPC Endpoint Common Configuration
+          default: ALB Configuration
         Parameters:
-          - IdVpc
-      -
-        Label:
-          default: Interface type VPC Endpoint Configuration
-        Parameters:
-          - IdSubnetPrivateEgress1A
-          - IdSubnetPrivateEgress1C
-          - IdSecurityGroupVpcEndpoint
-      -
-        Label:
-          default: Gateway type VPC Endpoint Configuration
-        Parameters:
-          - IdRouteTableContainerApp
+          - IdSecurityGroupInternalLoadBalancer
+          - IdSubnetPrivateContainer1A
+          - IdSubnetPrivateContainer1C
       - 
         Label:
-          default: VPC Endpoint Configuration for ECR
+          default: ALB TargetGroups Configuration
         Parameters:
-          - CreateEndpointEcr
-      -
-        Label:
-          default: VPC Endpoint Configuration for CloudWatchLogs
-        Parameters:
-          - CreateEndpointCloudWatchLogs
-      -
-        Label:
-          default: VPC Endpoint Configuration for S3
-        Parameters:
-          - CreateEndpointS3
+          - IdVpc
 
     ParameterLabels:
       Stack:
@@ -76,6 +56,22 @@ Parameters:
     AllowedPattern: ^[a-z]([\-]{0,1}[a-z0-9]+)*$
     ConstraintDescription: This Parameter must match pattern ^[a-z]([\-]{0.1}[a-z0-9]+)*$
 
+  IdVpc:
+    Description: Specify the VPC ID for ALB TargetGroups.
+    Type: AWS::EC2::VPC::Id
+
+  IdSecurityGroupInternalLoadBalancer:
+    Description: Specify the SecurityGroup ID for Internal Load Balancer.
+    Type: AWS::EC2::SecurityGroup::Id
+  
+  IdSubnetPrivateContainer1A:
+    Description: Specify the ContainerPrivateSubnet1A ID for Internal Load Balancer.
+    Type: AWS::EC2::Subnet::Id
+  
+  IdSubnetPrivateContainer1C:
+    Description: Specify the ContainerPrivateSubnet1C ID for Internal Load Balancer.
+    Type: AWS::EC2::Subnet::Id
+
 Resources: 
 #-------------------------------------#
 # ALB
@@ -83,16 +79,17 @@ Resources:
   LoadBalancerApplication:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties: 
-      IpAddressType: dualstack
+      Name: !Sub ${Env}-${Stack}-alb-internal
+      IpAddressType: ipv4
       LoadBalancerAttributes: 
         - Key: deletion_protection.enalbed
           Value: false
         - Key: load_balancing.cross_zone.enabled
           Value: true
         - Key: access_logs.s3.enabled
-          Value: true
-        - Key: access_logs.s3.bucket
-          Value: !Ref NameS3BucketAccessLogs
+          Value: false
+        # - Key: access_logs.s3.bucket
+          # Value: !Ref NameS3BucketAccessLogs
         - Key: ipv6.deny_all_igw_traffic
           Value: true
         - Key: idle_timeout.timeout_seconds 
@@ -113,7 +110,6 @@ Resources:
           Value: true
         - Key: waf.fail_open.enabled
           Value: false
-      Name: !Sub ${Env}-${Stack}-alb-internal
       Scheme: internal
       SecurityGroups: 
         - !Ref IdSecurityGroupInternalLoadBalancer
@@ -131,25 +127,105 @@ Resources:
         - Key: Cost
           Value: !Sub ${Env}-${Stack}
 
-  ListenerAlb:
+  ListenerAlbBlue:
     Type: AWS::ElasticLoadBalancingV2::Listener
     Properties: 
       # Certificates: 
       #   - Certificate
       DefaultActions: 
-        - Action
+        - Type: forward
+          ForwardConfig:
+            TargetGroups:
+              - TargetGroupArn: !Ref TargetGroupBlue
+                Weight: 1
+              - TargetGroupArn: !Ref TargetGroupGreen
+                Weight: 1
       LoadBalancerArn: !Ref LoadBalancerApplication
-      Port: 443
-      Protocol: HTTPS 
+      Port: 80
+      Protocol: HTTP 
       # SslPolicy: String
 
-  ListenerCertificateAlb:
-    Type: AWS::ElasticLoadBalancingV2::ListenerCertificate
+  ListenerAlbGreen:
+    Type: AWS::ElasticLoadBalancingV2::Listener
     Properties: 
-      Certificates: 
-        - !Ref CertificateAlb
-      ListenerArn: !Ref ListenerAlb
+      # Certificates: 
+      #   - Certificate
+      DefaultActions: 
+        - Type: forward
+          TargetGroups:
+            - TargetGroupArn: !Ref TargetGroupGreen
+              Weight: 1
+      LoadBalancerArn: !Ref LoadBalancerApplication
+      Port: 10080
+      Protocol: HTTP 
+      # SslPolicy: String
+
+  # ListenerCertificateAlb:
+  #   Type: AWS::ElasticLoadBalancingV2::ListenerCertificate
+  #   Properties: 
+  #     Certificates: 
+  #       - !Ref CertificateAlb
+  #     ListenerArn: !Ref ListenerAlb
+
+  TargetGroupBlue:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub ${Env}-${Stack}-target-group-blue
+      HealthCheckEnabled: true
+      HealthCheckIntervalSeconds: 15
+      HealthCheckPath: /healthcheck
+      HealthCheckPort: traffic-port
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 3
+      UnhealthyThresholdCount: 2
+      IpAddressType: ipv4
+      Matcher:
+        HttpCode: 200
+      Port: 80
+      Protocol: HTTP
+      ProtocolVersion: HTTP1
+      TargetType: ip
+      VpcId: !Ref IdVpc
+      Tags:
+        - Key: Env
+          Value: !Ref Env
+        - Key: Stack
+          Value: !Ref Stack
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: Cost
+          Value: !Sub ${Env}-${Stack}
+
+  TargetGroupGreen:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub ${Env}-${Stack}-target-group-green
+      HealthCheckEnabled: true
+      HealthCheckIntervalSeconds: 15
+      HealthCheckPath: /healthcheck
+      HealthCheckPort: traffic-port
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 3
+      UnhealthyThresholdCount: 2
+      IpAddressType: ipv4
+      Matcher:
+        HttpCode: 200
+      Port: 80
+      Protocol: HTTP
+      ProtocolVersion: HTTP1
+      TargetType: ip
+      VpcId: !Ref IdVpc
+      Tags:
+        - Key: Env
+          Value: !Ref Env
+        - Key: Stack
+          Value: !Ref Stack
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: Cost
+          Value: !Sub ${Env}-${Stack}
 
 
-
-Outputs:
+# Outputs:

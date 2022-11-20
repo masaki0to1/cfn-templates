@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: 2010-09-09
-Description: Provision ACM Certificate. 
+Description: Provide ACM resources. 
 
 Metadata:
   AWS::CloudFormation::Interface:
