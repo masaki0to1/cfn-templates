@@ -130,7 +130,7 @@ Resources:
       DeploymentController: CODE_DEPLOY
       DesiredCount: 2
       EnableECSManagedTags: true
-      EnableExecuteCommand: Boolean ######
+      EnableExecuteCommand: false ######
       HealthCheckGracePeriodSeconds: 120
       LaunchType: FARGATE
       LoadBalancers: 
