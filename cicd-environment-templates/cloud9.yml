@@ -69,19 +69,24 @@ Parameters:
     AllowedPattern: ^[a-z]([\-]{0,1}[a-z0-9]+)*$
     ConstraintDescription: This Parameter must match pattern ^[a-z]([\-]{0.1}[a-z0-9]+)*$
 
-  InstanceType:
-    Description: Instance Type for Cloud9 
+  TypeInstance:
+    Description: Specify the Type of Instance that Cloud9 uses.
     Type: String
     Default: t2.micro
 
-  InstanceImage:
-    Description: Instance Image Distribution for Cloud9 
+  ImageInstance:
+    Description: Specify the Image of Distribution for the Instance that Cloud9 uses. 
     Type: String
     Default: AmazonLinux2
     AllowedValues:
       - AmazonLinux1
       - AmazonLinux2
       - Ubuntu18
+
+  IdSubnet:
+    Description: Specify the ID of the Subnet that Cloud9 uses.
+    Type: AWS::EC2::Subnet::Id
+    
 
   # CreateC9:
   #   Description: Flag whether to create Cloud9.
@@ -184,9 +189,10 @@ Resources:
       AutomaticStopTimeMinutes: 30
       ConnectionType: CONNECT_SSM
       Description: Cloud9 environment for Remote SSH connection from VSCode via SSM.
-      ImageId: !FindInMap [DistroToSSMPath, Linux, !Ref InstanceImage]
-      InstanceType: !Ref InstanceType
-      Name: !Ref C9EnvName  
+      ImageId: !FindInMap [DistroToSSMPath, Linux, !Ref ImageInstance]
+      InstanceType: !Ref TypeInstance
+      Name: !Ref C9EnvName
+      SubnetId: !Ref IdSubnet
       # Repositories:
       #   - PathComponent: !Sub 
       #     - /home/ec2-user/environment/${RepositoryName}
