@@ -11,6 +11,33 @@ Metadata:
           - Env
           - Stack
           - Owner
+      - Label:
+          default: VPC Configuration
+        Parameters:
+          - IdVpc
+          - IdSubnetPublicIngress1A
+          - IdSubnetPublicIngress1C
+          - IdSubnetPrivateContainer1A
+          - IdSubnetPrivateContainer1C
+      -
+        Label:
+          default: Security Group Configuration
+        Parameters:
+          - IdSecurityGroupInternet
+          - IdSecurityGroupBackendContainer
+      -
+        Label:
+          default: ALB Configuration
+        Parameters:
+          - NameDnsAlbBackend
+          - ArnTargetGroupBlue
+          - ArnTargetGroupGreen
+      -
+        Label:
+          default: Container Configuration
+        Parameters:
+          - NameFrontendContainer
+          - PortFrontendContainer
 
     ParameterLabels:
       Stack:
@@ -47,22 +74,52 @@ Parameters:
   IdVpc:
     Description : Specify the VPC ID.
     Type: AWS::EC2::VPC::Id
-
-  IdSecurityGroupInternet:
-    Description:  Specify the ID of the InternetSecurityGroup for ALB.
-    Type: AWS::EC2::SecurityGroup::Id
+    Default: vpc-06f279a2216b58f3b
 
   IdSubnetPublicIngress1A:
     Description: Specify the ID of the IngressPublicSubnet1A for ALB.
     Type: AWS::EC2::Subnet::Id
+    Default: subnet-09a12bf5e1c013828
 
   IdSubnetPublicIngress1C:
     Description: Specify the ID of the IngressPublicSubnet1C for ALB.
     Type: AWS::EC2::Subnet::Id
+    Default: subnet-07748b69afa51f5b5
+
+  IdSubnetPrivateContainer1A:
+    Description: Specify the ID of the PrivateSubnet1A for Container.
+    Type: AWS::EC2::Subnet::Id
+    Default: subnet-0b41b5547b3bf43f1
+
+  IdSubnetPrivateContainer1C:
+    Description: Specify the ID of the PrivateSubnet1C for Container.
+    Type: AWS::EC2::Subnet::Id
+    Default: subnet-0b41b5547b3bf43f1
+
+  IdSecurityGroupInternet:
+    Description:  Specify the ID of the IngressInternetSecurityGroup for ALB.
+    Type: AWS::EC2::SecurityGroup::Id
+    Default: sg-0e28f96b72c1d79e2
+  
+  IdSecurityGroupBackendContainer:
+    Description: Specify the ID of the EgressBackendContainerSecurityGroup.
+    Type: AWS::EC2::SecurityGroup::Id
+    Default: sg-0cb3b758ad2bbf61a
     
-  DnsAlbBackend:
-    Description: Specify the DNS A record of the Backend ALB.
+  NameDnsAlbBackend:
+    Description: Specify the DNS name (A Record) of the Backend ALB.
     Type: String
+    Default: internal-dev-test-alb-internal-173798352.ap-northeast-1.elb.amazonaws.com
+
+  ArnTargetGroupBlue:
+    Description: Specify the ARN of the TargetGroupBlue.
+    Type: String
+    Default: arn:aws:elasticloadbalancing:ap-northeast-1:727008614144:targetgroup/dev-test-blue-tg/77e5fc6479c6f701
+
+  ArnTargetGroupGreen:
+    Description: Specify the ARN of the TargetGroupGreen.
+    Type: String
+    Default: arn:aws:elasticloadbalancing:ap-northeast-1:727008614144:targetgroup/dev-test-green-tg/9a490a1eea3dc158
 
   NameFrontendContainer:
     Description: Enter the Name for Frontend Container.
@@ -74,36 +131,60 @@ Parameters:
     Type: String
     Default: 80
 
-  ArnTargetGroupBlue:
-    Description: Specify the ARN of the TargetGroupBlue.
-    Type: String
-
-  ArnTargetGroupGreen:
-    Description: Specify the ARN of the TargetGroupGreen.
-    Type: String
-
-  IdSecurityGroupBackendContainer:
-    Description: Specify the ID of the BackendContainerSecurityGroup.
-    Type: AWS::EC2::SecurityGroup::Id
-  
-  IdSubnetPrivateContainer1A:
-    Description: Specify the ID of the ContainerPrivateSubnet1A for Container.
-    Type: AWS::EC2::Subnet::Id
-
-  IdSubnetPrivateContainer1C:
-    Description: Specify the ID of the ContainerPrivateSubnet1C for Container.
-    Type: AWS::EC2::Subnet::Id
     
 Resources:
 #-----------------------------------#
+# IAM
+#-----------------------------------#
+  # ServiceLinkedRoleEcs:
+  #   Type: AWS::IAM::ServiceLinkedRole
+  #   Properties:
+  #     AWSServiceName: ecs.amazonaws.com
+  #     Description: Service Linked Role for ECS created by CloudFormation in the frontend-container Stack.
+
+  RoleTaskDefinition:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - 
+            Effect: Allow
+            Principal:
+              Service:
+                - ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+            Condition:
+              ArnLike:
+                aws:SourceArn: !Sub 'arn:aws:ecs:ap-northeast-1:${AWS::AccountId}:*'
+              StringEquals:
+                aws:SourceAccount: !Ref AWS::AccountId
+      RoleName: TaskDefinitionRole
+
+  PolicyTaskDefinition:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: TaskDefinitionPolicy
+      Roles:
+        - !Ref RoleTaskDefinition
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          -
+            Effect: Allow
+            Action: '*'
+            Resource: '*'
+
+
+#-----------------------------------#
 # ECS
 #-----------------------------------#
-
   ClusterFrontend:
     Type: AWS::ECS::Cluster
     Properties:
       CapacityProviders:
         - FARGATE
+        - FARGATE_SPOT
       ClusterName: !Sub ${Env}-${Stack}-frontend-cluster
       ClusterSettings:
         - Name: containerInsights
@@ -127,12 +208,13 @@ Resources:
           CapacityProvider: FARGATE_SPOT
           Weight: 1
       Cluster: !GetAtt ClusterFrontend.Arn
-      DeploymentController: CODE_DEPLOY
+      DeploymentController:
+        Type: CODE_DEPLOY
       DesiredCount: 2
       EnableECSManagedTags: true
-      EnableExecuteCommand: false ######
+      EnableExecuteCommand: true ######
       HealthCheckGracePeriodSeconds: 120
-      LaunchType: FARGATE
+      # LaunchType: FARGATE #If a capacityProviderStrategy is specified, the launchType parameter must be omitted.
       LoadBalancers: 
         - ContainerName: !Ref NameFrontendContainer
           ContainerPort: !Ref PortFrontendContainer
@@ -142,7 +224,7 @@ Resources:
           TargetGroupArn: !Ref ArnTargetGroupGreen
       NetworkConfiguration: 
         AwsvpcConfiguration:
-          AssignPublicIp: DISABLE
+          AssignPublicIp: DISABLED 
           SecurityGroups:
             - !Ref IdSecurityGroupBackendContainer
           Subnets:
@@ -153,11 +235,11 @@ Resources:
       # PlacementStrategies: 
       #   - PlacementStrategy
       PlatformVersion: 1.4.0
-      PropagateTags: NONE
+      # PropagateTags: 'NONE'
       SchedulingStrategy: REPLICA
       ServiceName: ecs-frontend-service
-      ServiceRegistries: 
-        - !GetAtt ServiceDiscovery.Arn ####
+      # ServiceRegistries: 
+      #   - !GetAtt ServiceDiscovery.Arn ####
       TaskDefinition: !Ref TaskDefinitionFrontend
       Tags:
         - Key: Env
@@ -174,7 +256,7 @@ Resources:
       ContainerDefinitions:
         - 
           Name: !Ref NameFrontendContainer
-          Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/sbcntr-frontend:v1"
+          Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/sbcntr-frontend:v1
           Essential: true
           Cpu: 256
           MemoryReservation: 512
@@ -187,21 +269,23 @@ Resources:
             - Name: SESSION_SECRET_KEY
               Value: 41b678c65b37bf99c37bcab522802760
             - Name: APP_SERVICE_HOST
-              Value: !Sub "http://${DnsAlbBackend}"
+              Value: !Sub http://${NameDnsAlbBackend}
             - Name: NOTIF_SERVICE_HOST
-              Value: !Sub "http://${DnsAlbBackend}"
+              Value: !Sub http://${NameDnsAlbBackend}
           LogConfiguration:
               LogDriver: awslogs
               Options: 
-                awslogs-group: !Sub "/ecs/${Env}-${Stack}-frontend-def"
+                awslogs-create-group: true
+                awslogs-group: !Sub /ecs/${Env}-${Stack}-frontend-def
                 awslogs-region: !Ref AWS::Region
-                awslogs-stream-Stack: ecs
+                awslogs-stream-prefix: !Sub /${Env}-${Stack}/${NameFrontendContainer}
       Cpu: 512
       Memory: 1024
-      ExecutionRoleArn: !Sub "arn:aws:iam::${AWS::AccountId}:role/ecsTaskExecutionRole"
+      ExecutionRoleArn: !Sub arn:aws:iam::${AWS::AccountId}:role/ecsTaskExecutionRole
       NetworkMode: awsvpc
       RequiresCompatibilities:
         - FARGATE
+      TaskRoleArn: !GetAtt RoleTaskDefinition.Arn
       Tags:
         - Key: Env
           Value: !Ref Env
@@ -269,13 +353,12 @@ Resources:
         - Key: Owner
           Value: !Ref Owner
 
-#-----------------------------------#
-# ALB
+#--------------------frontend-tg"
 #-----------------------------------#
   AlbFrontend:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:
-      Name: !Sub "${Env}-${Stack}-alb-ingress-frontend"
+      Name: !Sub ${Env}-${Stack}-alb-ingress-frontend
       Type: application
       Scheme: internet-facing
       SecurityGroups:
@@ -293,13 +376,11 @@ Resources:
           Value: !Ref Stack
         - Key: Owner
           Value: !Ref Owner
-        - Key: Cost
-          Value: !Ref Cost
 
   TargetGroupFrontend:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
-      Name: !Sub "${Env}-${Stack}-target-group-frontend"
+      Name: !Sub ${Env}-${Stack}-frontend-tg
       Port: 80
       Protocol: HTTP
       TargetType: ip

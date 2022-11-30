@@ -286,7 +286,7 @@ Resources:
         - Key: Cost
           Value: !Sub ${Env}-${Stack}
         - Key: Name
-          Value: route-table-app
+          Value: route-table-container-app
 
   RouteTableDb:
     Type: AWS::EC2::RouteTable
@@ -415,7 +415,7 @@ Resources:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Security Group for internet
-      GroupName: ${Env}-${Stack}-ingress
+      GroupName: !Sub ${Env}-${Stack}-ingress-internet
       SecurityGroupEgress:
         - CidrIp: 0.0.0.0/0
           Description: Allow all outbound traffic by default
@@ -442,14 +442,14 @@ Resources:
         - Key: Cost
           Value: !Sub ${Env}-${Stack}
         - Key: Name
-          Value: securitygroup-internet-ingress
+          Value: ingress-internet
   
   # Security Group for Management Server
   SecurityGroupManagementServer:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Security Group for Management Server
-      GroupName: ${Env}-${Stack}-management-egress
+      GroupName: !Sub ${Env}-${Stack}-egress-management-server
       SecurityGroupEgress:
         - CidrIp: 0.0.0.0/0
           Description: Allow all outbound traffic by default
@@ -465,14 +465,14 @@ Resources:
         - Key: Cost
           Value: !Sub ${Env}-${Stack}
         - Key: Name
-          Value: securitygroup-management-server-egress
+          Value: egress-management-server
   
   # Security Group for Backend Container App
   SecurityGroupBackendContainer:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Security Group for Backend Container App
-      GroupName: ${Env}-${Stack}-backend-container-egress
+      GroupName: !Sub ${Env}-${Stack}-egress-backend-container
       SecurityGroupEgress:
         - CidrIp: 0.0.0.0/0
           Description: Allow all outbound traffic by default
@@ -488,14 +488,14 @@ Resources:
         - Key: Cost
           Value: !Sub ${Env}-${Stack}
         - Key: Name
-          Value: securitygroup-backend-container-egress
+          Value: egress-backend-container
   
   # Security Group for Frontend Container App
   SecurityGroupFrontendContainer:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Security Group for Frontend Container App
-      GroupName: ${Env}-${Stack}-frontend-container-egress
+      GroupName: !Sub ${Env}-${Stack}-egress-frontend-container
       SecurityGroupEgress:
         - CidrIp: 0.0.0.0/0
           Description: Allow all outbound traffic by default
@@ -511,14 +511,14 @@ Resources:
         - Key: Cost
           Value: !Sub ${Env}-${Stack}
         - Key: Name
-          Value: securitygroup-frontend-container-egress
+          Value: egress-frontend-container
 
   # Security Group for Internal LB
   SecurityGroupInternalLoadBalancer:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Security Group for Internal Load Balancer
-      GroupName: ${Env}-${Stack}-internal-load-balancer-egress
+      GroupName: !Sub ${Env}-${Stack}-egress-internal-load-balancer
       SecurityGroupEgress:
         - CidrIp: 0.0.0.0/0
           Description: Allow all outbound traffic by default
@@ -534,14 +534,14 @@ Resources:
         - Key: Cost
           Value: !Sub ${Env}-${Stack}
         - Key: Name
-          Value: securitygroup-internal-load-balancer-egress
+          Value: egress-internal-load-balancer
 
   # Security Group for DB
   SecurityGroupDb:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Security Group for database
-      GroupName: ${Env}-${Stack}-database-egress
+      GroupName: !Sub ${Env}-${Stack}-egress-database
       SecurityGroupEgress:
         - CidrIp: 0.0.0.0/0
           Description: Allow all outbound traffic by default
@@ -557,14 +557,14 @@ Resources:
         - Key: Cost
           Value: !Sub ${Env}-${Stack}
         - Key: Name
-          Value: securitygroup-db-egress
+          Value: egress-database
 
   # Security Group for VPC Endpoint
   SecurityGroupVpcEndpoint:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Security Group for VPC endpoint
-      GroupName: ${Env}-${Stack}-vpc-endpoint-egress
+      GroupName: !Sub ${Env}-${Stack}-egress-vpc-endpoint
       SecurityGroupEgress:
         - CidrIp: 0.0.0.0/0
           Description: Allow all outbound traffic by default
@@ -580,7 +580,7 @@ Resources:
         - Key: Cost
           Value: !Sub ${Env}-${Stack}
         - Key: Name
-          Value: securitygroup-vpc-endpoint-egress
+          Value: egress-vpc-endpoint
 
 #---------------------------------------------------------#
 # Security Group Ingress

@@ -61,22 +61,22 @@ Parameters:
     Type: AWS::EC2::VPC::Id
 
   IdSubnetPrivateContainer1A:
-    Description: Specify the ContainerPrivateSubnet1A ID for Internal Load Balancer.
+    Description: Specify the ID of the ContainerPrivateSubnet1A for Internal Load Balancer.
     Type: AWS::EC2::Subnet::Id
   
   IdSubnetPrivateContainer1C:
-    Description: Specify the ContainerPrivateSubnet1C ID for Internal Load Balancer.
+    Description: Specify the ID of the ContainerPrivateSubnet1C for Internal Load Balancer.
     Type: AWS::EC2::Subnet::Id
 
   IdSecurityGroupInternalLoadBalancer:
-    Description: Specify the SecurityGroup ID for Internal Load Balancer.
+    Description: Specify the ID of the EgressSecurityGroup for Internal Load Balancer.
     Type: AWS::EC2::SecurityGroup::Id
   
 Resources: 
 #-------------------------------------#
 # ALB
 #-------------------------------------#
-  LoadBalancerApplication:
+  Alb:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties: 
       Name: !Sub ${Env}-${Stack}-alb-internal
@@ -135,7 +135,7 @@ Resources:
       DefaultActions: 
         - Type: forward
           TargetGroupArn: !Ref TargetGroupBlue
-      LoadBalancerArn: !Ref LoadBalancerApplication
+      LoadBalancerArn: !Ref Alb
       Port: 80
       Protocol: HTTP 
       # SslPolicy: String
@@ -148,7 +148,7 @@ Resources:
       DefaultActions: 
         - Type: forward
           TargetGroupArn: !Ref TargetGroupGreen
-      LoadBalancerArn: !Ref LoadBalancerApplication
+      LoadBalancerArn: !Ref Alb
       Port: 10080
       Protocol: HTTP 
       # SslPolicy: String
@@ -163,7 +163,7 @@ Resources:
   TargetGroupBlue:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
-      Name: !Sub ${Env}-${Stack}-target-group-blue
+      Name: !Sub ${Env}-${Stack}-blue-tg
       HealthCheckEnabled: true
       HealthCheckIntervalSeconds: 15
       HealthCheckPath: /healthcheck
@@ -193,7 +193,7 @@ Resources:
   TargetGroupGreen:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
-      Name: !Sub ${Env}-${Stack}-target-group-green
+      Name: !Sub ${Env}-${Stack}-green-tg
       HealthCheckEnabled: true
       HealthCheckIntervalSeconds: 15
       HealthCheckPath: /healthcheck
@@ -220,5 +220,10 @@ Resources:
         - Key: Cost
           Value: !Sub ${Env}-${Stack}
 
-
-# Outputs:
+Outputs:
+  ARecordAlbBackend:
+    Value: !GetAtt Alb.DNSName
+  ArnTargetGroupBlue:
+    Value: !Ref TargetGroupBlue
+  ArnTargetGroupGreen:
+    Value: !Ref TargetGroupGreen
