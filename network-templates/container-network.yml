@@ -270,6 +270,31 @@ Resources:
           Value: subnet-public-management-1c
 
 #---------------------------------------------------------#
+# Internet Gateway
+#---------------------------------------------------------#
+  Igw:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Env
+          Value: !Ref Env
+        - Key: Stack
+          Value: !Ref Stack
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: Cost
+          Value: !Sub ${Env}-${Stack}
+
+#---------------------------------------------------------#
+# VPC Gateway Attachment
+#---------------------------------------------------------#
+  VpcGateWayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref Vpc
+      InternetGatewayId: !Ref Igw
+
+#---------------------------------------------------------#
 # Route Table
 #---------------------------------------------------------#
   RouteTableContainerApp:
@@ -319,6 +344,18 @@ Resources:
           Value: !Sub ${Env}-${Stack}
         - Key: Name
           Value: route-table-ingress
+
+#---------------------------------------------------------#
+# Route 
+#---------------------------------------------------------#
+  RouteInternetDefault:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref RouteTableIngress
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref Igw
+    DependsOn:
+      - VpcGateWayAttachment
 
 #---------------------------------------------------------#
 # Route Table Association
@@ -371,43 +408,6 @@ Resources:
       SubnetId: !Ref SubnetPublicManagement1C
 
 #---------------------------------------------------------#
-# Route 
-#---------------------------------------------------------#
-  RouteIngressDefault:
-    Type: AWS::EC2::Route
-    Properties:
-      RouteTableId: !Ref RouteTableIngress
-      DestinationCidrBlock: 0.0.0.0/0
-      GatewayId: !Ref Igw
-    DependsOn:
-      - VpcGateWayAttachment
-
-#---------------------------------------------------------#
-# Internet Gateway
-#---------------------------------------------------------#
-  Igw:
-    Type: AWS::EC2::InternetGateway
-    Properties:
-      Tags:
-        - Key: Env
-          Value: !Ref Env
-        - Key: Stack
-          Value: !Ref Stack
-        - Key: Owner
-          Value: !Ref Owner
-        - Key: Cost
-          Value: !Sub ${Env}-${Stack}
-
-#---------------------------------------------------------#
-# VPC Gateway Attachment
-#---------------------------------------------------------#
-  VpcGateWayAttachment:
-    Type: AWS::EC2::VPCGatewayAttachment
-    Properties:
-      VpcId: !Ref Vpc
-      InternetGatewayId: !Ref Igw
-
-#---------------------------------------------------------#
 # Security Group
 #---------------------------------------------------------#
   # Security Group for Internet
@@ -442,7 +442,7 @@ Resources:
         - Key: Cost
           Value: !Sub ${Env}-${Stack}
         - Key: Name
-          Value: ingress-internet
+          Value: sg-ingress-internet
   
   # Security Group for Management Server
   SecurityGroupManagementServer:
@@ -465,7 +465,7 @@ Resources:
         - Key: Cost
           Value: !Sub ${Env}-${Stack}
         - Key: Name
-          Value: egress-management-server
+          Value: egress-management-server-sg
   
   # Security Group for Backend Container App
   SecurityGroupBackendContainer:
@@ -488,7 +488,7 @@ Resources:
         - Key: Cost
           Value: !Sub ${Env}-${Stack}
         - Key: Name
-          Value: egress-backend-container
+          Value: egress-backend-container-sg
   
   # Security Group for Frontend Container App
   SecurityGroupFrontendContainer:
@@ -511,7 +511,7 @@ Resources:
         - Key: Cost
           Value: !Sub ${Env}-${Stack}
         - Key: Name
-          Value: egress-frontend-container
+          Value: egress-frontend-container-sg
 
   # Security Group for Internal LB
   SecurityGroupInternalLoadBalancer:
@@ -534,7 +534,7 @@ Resources:
         - Key: Cost
           Value: !Sub ${Env}-${Stack}
         - Key: Name
-          Value: egress-internal-load-balancer
+          Value: egress-internal-load-balancer-sg
 
   # Security Group for DB
   SecurityGroupDb:
@@ -557,7 +557,7 @@ Resources:
         - Key: Cost
           Value: !Sub ${Env}-${Stack}
         - Key: Name
-          Value: egress-database
+          Value: egress-database-sg
 
   # Security Group for VPC Endpoint
   SecurityGroupVpcEndpoint:
@@ -580,7 +580,7 @@ Resources:
         - Key: Cost
           Value: !Sub ${Env}-${Stack}
         - Key: Name
-          Value: egress-vpc-endpoint
+          Value: egress-vpc-endpoint-sg
 
 #---------------------------------------------------------#
 # Security Group Ingress

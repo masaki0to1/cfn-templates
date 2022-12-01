@@ -298,7 +298,7 @@ Resources:
     Type: AWS::Logs::LogGroup
     UpdateReplacePolicy: Retain
     Properties:
-      LogGroupName: /ecs/sbcntr-backend-def
+      LogGroupName: /ecs/backend-def
       RetentionInDays: 14
       Tags:
         - Key: Env
@@ -353,12 +353,13 @@ Resources:
         - Key: Owner
           Value: !Ref Owner
 
-#--------------------backend-tg"
+#-----------------------------------#
+# ALB
 #-----------------------------------#
   AlbBackend:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:
-      Name: !Sub ${Env}-${Stack}-ingress-backend-alb
+      Name: !Sub ${Env}-${Stack}-backend-alb
       Type: application
       Scheme: internet-facing
       SecurityGroups:
@@ -376,6 +377,16 @@ Resources:
           Value: !Ref Stack
         - Key: Owner
           Value: !Ref Owner
+          
+  ListenerBackend:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+        DefaultActions: 
+          - TargetGroupArn: !Ref TargetGroupBackend
+            Type: forward
+        LoadBalancerArn: !Ref AlbBackend
+        Port: 80
+        Protocol: HTTP
 
   TargetGroupBackend:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
@@ -400,12 +411,3 @@ Resources:
         - Key: Owner
           Value: !Ref Owner
   
-  ListenerBackend:
-    Type: AWS::ElasticLoadBalancingV2::Listener
-    Properties:
-        DefaultActions: 
-          - TargetGroupArn: !Ref TargetGroupBackend
-            Type: forward
-        LoadBalancerArn: !Ref AlbBackend
-        Port: 80
-        Protocol: HTTP
