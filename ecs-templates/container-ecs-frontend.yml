@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: Provides frontend base.
+Description: Provides Backend base.
 
 Metadata:
   AWS::CloudFormation::Interface:
@@ -36,8 +36,8 @@ Metadata:
         Label:
           default: Container Configuration
         Parameters:
-          - NameFrontendContainer
-          - PortFrontendContainer
+          - NameBackendContainer
+          - PortBackendContainer
 
     ParameterLabels:
       Stack:
@@ -121,13 +121,13 @@ Parameters:
     Type: String
     Default: arn:aws:elasticloadbalancing:ap-northeast-1:727008614144:targetgroup/dev-test-green-tg/9a490a1eea3dc158
 
-  NameFrontendContainer:
-    Description: Enter the Name for Frontend Container.
+  NameBackendContainer:
+    Description: Enter the Name for Backend Container.
     Type: String
-    Default: frontend-app
+    Default: Backend-app
   
-  PortFrontendContainer:
-    Description: Specify the Port Number for Frontend Container.
+  PortBackendContainer:
+    Description: Specify the Port Number for Backend Container.
     Type: String
     Default: 80
 
@@ -140,7 +140,7 @@ Resources:
   #   Type: AWS::IAM::ServiceLinkedRole
   #   Properties:
   #     AWSServiceName: ecs.amazonaws.com
-  #     Description: Service Linked Role for ECS created by CloudFormation in the frontend-container Stack.
+  #     Description: Service Linked Role for ECS created by CloudFormation in the Backend-container Stack.
 
   RoleTaskDefinition:
     Type: AWS::IAM::Role
@@ -179,13 +179,58 @@ Resources:
 #-----------------------------------#
 # ECS
 #-----------------------------------#
-  ClusterFrontend:
+  TaskDefinitionBackend:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub ${Env}-${Stack}-backend-task-definition
+      ContainerDefinitions:
+        - 
+          Name: !Ref NameBackendContainer
+          Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/dev-container-ecr-repository-backend:v1
+          Essential: true
+          Cpu: 256
+          MemoryReservation: 512
+          ReadonlyRootFilesystem: true
+          PortMappings:
+            - ContainerPort: !Ref PortBackendContainer
+              HostPort: 80
+              Protocol: tcp
+          Environment:
+            - Name: SESSION_SECRET_KEY
+              Value: 41b678c65b37bf99c37bcab522802760
+            - Name: APP_SERVICE_HOST
+              Value: !Sub http://${NameDnsAlbBackend}
+            - Name: NOTIF_SERVICE_HOST
+              Value: !Sub http://${NameDnsAlbBackend}
+          LogConfiguration:
+              LogDriver: awslogs
+              Options: 
+                awslogs-create-group: true
+                awslogs-group: !Sub /ecs/${Env}-${Stack}-backend-task-definition
+                awslogs-region: !Ref AWS::Region
+                awslogs-stream-prefix: !Sub /${Env}-${Stack}/${NameBackendContainer}
+      Cpu: 512
+      Memory: 1024
+      ExecutionRoleArn: !Sub arn:aws:iam::${AWS::AccountId}:role/ecsTaskExecutionRole
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      TaskRoleArn: !GetAtt RoleTaskDefinition.Arn
+      Tags:
+        - Key: Env
+          Value: !Ref Env
+        - Key: Stack
+          Value: !Ref Stack
+        - Key: Owner
+          Value: !Ref Owner
+
+  ClusterBackend:
     Type: AWS::ECS::Cluster
     Properties:
       CapacityProviders:
         - FARGATE
         - FARGATE_SPOT
-      ClusterName: !Sub ${Env}-${Stack}-frontend-cluster
+      ClusterName: !Sub ${Env}-${Stack}-backend-cluster
       ClusterSettings:
         - Name: containerInsights
           Value: enabled
@@ -197,7 +242,7 @@ Resources:
         - Key: Owner
           Value: !Ref Owner
 
-  ServiceFrontend:
+  ServiceBackend:
     Type: AWS::ECS::Service
     Properties: 
       CapacityProviderStrategy: 
@@ -207,7 +252,7 @@ Resources:
         - Base: 0
           CapacityProvider: FARGATE_SPOT
           Weight: 1
-      Cluster: !GetAtt ClusterFrontend.Arn
+      Cluster: !GetAtt ClusterBackend.Arn
       DeploymentController:
         Type: CODE_DEPLOY
       DesiredCount: 2
@@ -216,11 +261,11 @@ Resources:
       HealthCheckGracePeriodSeconds: 120
       # LaunchType: FARGATE #If a capacityProviderStrategy is specified, the launchType parameter must be omitted.
       LoadBalancers: 
-        - ContainerName: !Ref NameFrontendContainer
-          ContainerPort: !Ref PortFrontendContainer
+        - ContainerName: !Ref NameBackendContainer
+          ContainerPort: !Ref PortBackendContainer
           TargetGroupArn: !Ref ArnTargetGroupBlue
-        - ContainerName: !Ref NameFrontendContainer
-          ContainerPort: !Ref PortFrontendContainer
+        - ContainerName: !Ref NameBackendContainer
+          ContainerPort: !Ref PortBackendContainer
           TargetGroupArn: !Ref ArnTargetGroupGreen
       NetworkConfiguration: 
         AwsvpcConfiguration:
@@ -237,10 +282,10 @@ Resources:
       PlatformVersion: 1.4.0
       # PropagateTags: 'NONE'
       SchedulingStrategy: REPLICA
-      ServiceName: ecs-frontend-service
+      ServiceName: ecs-backend-service
       # ServiceRegistries: 
       #   - !GetAtt ServiceDiscovery.Arn ####
-      TaskDefinition: !Ref TaskDefinitionFrontend
+      TaskDefinition: !Ref TaskDefinitionBackend
       Tags:
         - Key: Env
           Value: !Ref Env
@@ -249,56 +294,11 @@ Resources:
         - Key: Owner
           Value: !Ref Owner
 
-  TaskDefinitionFrontend:
-    Type: AWS::ECS::TaskDefinition
-    Properties:
-      Family: !Sub ${Env}-${Stack}-frontend-task-definition
-      ContainerDefinitions:
-        - 
-          Name: !Ref NameFrontendContainer
-          Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/sbcntr-frontend:v1
-          Essential: true
-          Cpu: 256
-          MemoryReservation: 512
-          ReadonlyRootFilesystem: true
-          PortMappings:
-            - ContainerPort: !Ref PortFrontendContainer
-              HostPort: 80
-              Protocol: tcp
-          Environment:
-            - Name: SESSION_SECRET_KEY
-              Value: 41b678c65b37bf99c37bcab522802760
-            - Name: APP_SERVICE_HOST
-              Value: !Sub http://${NameDnsAlbBackend}
-            - Name: NOTIF_SERVICE_HOST
-              Value: !Sub http://${NameDnsAlbBackend}
-          LogConfiguration:
-              LogDriver: awslogs
-              Options: 
-                awslogs-create-group: true
-                awslogs-group: !Sub /ecs/${Env}-${Stack}-frontend-def
-                awslogs-region: !Ref AWS::Region
-                awslogs-stream-prefix: !Sub /${Env}-${Stack}/${NameFrontendContainer}
-      Cpu: 512
-      Memory: 1024
-      ExecutionRoleArn: !Sub arn:aws:iam::${AWS::AccountId}:role/ecsTaskExecutionRole
-      NetworkMode: awsvpc
-      RequiresCompatibilities:
-        - FARGATE
-      TaskRoleArn: !GetAtt RoleTaskDefinition.Arn
-      Tags:
-        - Key: Env
-          Value: !Ref Env
-        - Key: Stack
-          Value: !Ref Stack
-        - Key: Owner
-          Value: !Ref Owner
-
-  CloudWatchLogsFrontend:
+  CloudWatchLogsBackend:
     Type: AWS::Logs::LogGroup
     UpdateReplacePolicy: Retain
     Properties:
-      LogGroupName: /ecs/sbcntr-frontend-def
+      LogGroupName: /ecs/sbcntr-backend-def
       RetentionInDays: 14
       Tags:
         - Key: Env
@@ -353,12 +353,12 @@ Resources:
         - Key: Owner
           Value: !Ref Owner
 
-#--------------------frontend-tg"
+#--------------------backend-tg"
 #-----------------------------------#
-  AlbFrontend:
+  AlbBackend:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:
-      Name: !Sub ${Env}-${Stack}-alb-ingress-frontend
+      Name: !Sub ${Env}-${Stack}-ingress-backend-alb
       Type: application
       Scheme: internet-facing
       SecurityGroups:
@@ -377,10 +377,10 @@ Resources:
         - Key: Owner
           Value: !Ref Owner
 
-  TargetGroupFrontend:
+  TargetGroupBackend:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
-      Name: !Sub ${Env}-${Stack}-frontend-tg
+      Name: !Sub ${Env}-${Stack}-backend-tg
       Port: 80
       Protocol: HTTP
       TargetType: ip
@@ -400,12 +400,12 @@ Resources:
         - Key: Owner
           Value: !Ref Owner
   
-  ListenerFrontend:
+  ListenerBackend:
     Type: AWS::ElasticLoadBalancingV2::Listener
     Properties:
         DefaultActions: 
-          - TargetGroupArn: !Ref TargetGroupFrontend
+          - TargetGroupArn: !Ref TargetGroupBackend
             Type: forward
-        LoadBalancerArn: !Ref AlbFrontend
+        LoadBalancerArn: !Ref AlbBackend
         Port: 80
         Protocol: HTTP

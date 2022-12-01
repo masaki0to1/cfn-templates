@@ -15,9 +15,9 @@ Metadata:
         Label: 
           default: ALB Configuration
         Parameters:
-          - IdSubnetPrivateContainer1A
-          - IdSubnetPrivateContainer1C
-          - IdSecurityGroupInternalLoadBalancer
+          - IdSubnetPrivate1A
+          - IdSubnetPrivate1C
+          - IdSecurityGroupAlb
       - 
         Label:
           default: ALB TargetGroups Configuration
@@ -45,7 +45,7 @@ Parameters:
   Stack:
     Description: Specify the Stack Tag.
     Type: String
-    Default: endpoint
+    Default: basic
     AllowedPattern: ^[a-z]([\-]{0,1}[a-z0-9]+)*$
     ConstraintDescription: This Parameter must match pattern ^[a-z]([\-]{0.1}[a-z0-9]+)*$
 
@@ -60,16 +60,16 @@ Parameters:
     Description: Specify the VPC ID for ALB TargetGroups.
     Type: AWS::EC2::VPC::Id
 
-  IdSubnetPrivateContainer1A:
-    Description: Specify the ID of the ContainerPrivateSubnet1A for Internal Load Balancer.
+  IdSubnetPrivate1A:
+    Description: Specify the ID of the PrivateSubnet1A for Application Load Balancer.
     Type: AWS::EC2::Subnet::Id
   
-  IdSubnetPrivateContainer1C:
-    Description: Specify the ID of the ContainerPrivateSubnet1C for Internal Load Balancer.
+  IdSubnetPrivate1C:
+    Description: Specify the ID of the PrivateSubnet1C for Application Load Balancer.
     Type: AWS::EC2::Subnet::Id
 
-  IdSecurityGroupInternalLoadBalancer:
-    Description: Specify the ID of the EgressSecurityGroup for Internal Load Balancer.
+  IdSecurityGroupAlb:
+    Description: Specify the ID of the EgressSecurityGroup for Application Load Balancer.
     Type: AWS::EC2::SecurityGroup::Id
   
 Resources: 
@@ -79,7 +79,7 @@ Resources:
   Alb:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties: 
-      Name: !Sub ${Env}-${Stack}-alb-internal
+      Name: !Sub ${Env}-${Stack}-alb
       IpAddressType: ipv4
       LoadBalancerAttributes: 
         - Key: deletion_protection.enabled
@@ -110,12 +110,12 @@ Resources:
           Value: true
         - Key: waf.fail_open.enabled
           Value: false
-      Scheme: internal
+      Scheme: internet-facing
       SecurityGroups: 
-        - !Ref IdSecurityGroupInternalLoadBalancer
+        - !Ref IdSecurityGroupAlb
       Subnets: 
-        - !Ref IdSubnetPrivateContainer1A
-        - !Ref IdSubnetPrivateContainer1C
+        - !Ref IdSubnetPrivate1A
+        - !Ref IdSubnetPrivate1C
       Type: application
       Tags: 
         - Key: Env
@@ -127,29 +127,89 @@ Resources:
         - Key: Cost
           Value: !Sub ${Env}-${Stack}
 
-  ListenerAlbBlue:
+  TargetGroup3000:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub ${Env}-${Stack}-3000-tg
+      HealthCheckEnabled: true
+      HealthCheckIntervalSeconds: 15
+      HealthCheckPath: /healthcheck
+      HealthCheckPort: traffic-port
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 3
+      UnhealthyThresholdCount: 2
+      IpAddressType: ipv4
+      Matcher:
+        HttpCode: 200
+      Port: 3000
+      Protocol: HTTP
+      ProtocolVersion: HTTP1
+      TargetType: ip
+      VpcId: !Ref IdVpc
+      Tags:
+        - Key: Env
+          Value: !Ref Env
+        - Key: Stack
+          Value: !Ref Stack
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: Cost
+          Value: !Sub ${Env}-${Stack}
+
+  TargetGroup4000:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub ${Env}-${Stack}-4000-tg
+      HealthCheckEnabled: true
+      HealthCheckIntervalSeconds: 15
+      HealthCheckPath: /healthcheck
+      HealthCheckPort: traffic-port
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 3
+      UnhealthyThresholdCount: 2
+      IpAddressType: ipv4
+      Matcher:
+        HttpCode: 200
+      Port: 4000
+      Protocol: HTTP
+      ProtocolVersion: HTTP1
+      TargetType: ip
+      VpcId: !Ref IdVpc
+      Tags:
+        - Key: Env
+          Value: !Ref Env
+        - Key: Stack
+          Value: !Ref Stack
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: Cost
+          Value: !Sub ${Env}-${Stack}
+
+  Listener3000:
     Type: AWS::ElasticLoadBalancingV2::Listener
     Properties: 
       # Certificates: 
       #   - Certificate
       DefaultActions: 
         - Type: forward
-          TargetGroupArn: !Ref TargetGroupBlue
+          TargetGroupArn: !Ref TargetGroup3000
       LoadBalancerArn: !Ref Alb
-      Port: 80
+      Port: 3000
       Protocol: HTTP 
       # SslPolicy: String
 
-  ListenerAlbGreen:
+  Listener4000:
     Type: AWS::ElasticLoadBalancingV2::Listener
     Properties: 
       # Certificates: 
       #   - Certificate
       DefaultActions: 
         - Type: forward
-          TargetGroupArn: !Ref TargetGroupGreen
+          TargetGroupArn: !Ref TargetGroup4000
       LoadBalancerArn: !Ref Alb
-      Port: 10080
+      Port: 4000
       Protocol: HTTP 
       # SslPolicy: String
 
@@ -160,70 +220,10 @@ Resources:
   #       - !Ref CertificateAlb
   #     ListenerArn: !Ref ListenerAlb
 
-  TargetGroupBlue:
-    Type: AWS::ElasticLoadBalancingV2::TargetGroup
-    Properties:
-      Name: !Sub ${Env}-${Stack}-blue-tg
-      HealthCheckEnabled: true
-      HealthCheckIntervalSeconds: 15
-      HealthCheckPath: /healthcheck
-      HealthCheckPort: traffic-port
-      HealthCheckProtocol: HTTP
-      HealthCheckTimeoutSeconds: 5
-      HealthyThresholdCount: 3
-      UnhealthyThresholdCount: 2
-      IpAddressType: ipv4
-      Matcher:
-        HttpCode: 200
-      Port: 80
-      Protocol: HTTP
-      ProtocolVersion: HTTP1
-      TargetType: ip
-      VpcId: !Ref IdVpc
-      Tags:
-        - Key: Env
-          Value: !Ref Env
-        - Key: Stack
-          Value: !Ref Stack
-        - Key: Owner
-          Value: !Ref Owner
-        - Key: Cost
-          Value: !Sub ${Env}-${Stack}
-
-  TargetGroupGreen:
-    Type: AWS::ElasticLoadBalancingV2::TargetGroup
-    Properties:
-      Name: !Sub ${Env}-${Stack}-green-tg
-      HealthCheckEnabled: true
-      HealthCheckIntervalSeconds: 15
-      HealthCheckPath: /healthcheck
-      HealthCheckPort: traffic-port
-      HealthCheckProtocol: HTTP
-      HealthCheckTimeoutSeconds: 5
-      HealthyThresholdCount: 3
-      UnhealthyThresholdCount: 2
-      IpAddressType: ipv4
-      Matcher:
-        HttpCode: 200
-      Port: 80
-      Protocol: HTTP
-      ProtocolVersion: HTTP1
-      TargetType: ip
-      VpcId: !Ref IdVpc
-      Tags:
-        - Key: Env
-          Value: !Ref Env
-        - Key: Stack
-          Value: !Ref Stack
-        - Key: Owner
-          Value: !Ref Owner
-        - Key: Cost
-          Value: !Sub ${Env}-${Stack}
-
 Outputs:
   ARecordAlbBackend:
     Value: !GetAtt Alb.DNSName
   ArnTargetGroupBlue:
-    Value: !Ref TargetGroupBlue
-  ArnTargetGroupGreen:
-    Value: !Ref TargetGroupGreen
+    Value: !Ref TargetGroup3000
+  ArnTargetGroup4000:
+    Value: !Ref TargetGroup4000
