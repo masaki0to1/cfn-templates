@@ -53,14 +53,13 @@ Parameters:
   Owner:
     Description: Enter the name of the person creating this stack.
     Type: String
-    Default: masaki-ishimoto
+    Default: first-last
     AllowedPattern: ^[a-z]([\-]{0,1}[a-z0-9]+)*$
     ConstraintDescription: This Parameter must match pattern ^[a-z]([\-]{0.1}[a-z0-9]+)*$
 
   SourceIpv4RangeList:
     Description: The comma delimited list of allowed source IPv4 address range (CIDR) to access this web site. (e.g. xxx.xxx.xxx.xxx/xx,yyy.yyy.yyy.yyy/yy)
     Type: CommaDelimitedList
-    Default: 113.37.201.11/32
 
   # SourceIpv6RangeList:
   #   Description: The comma delimited list of allowed source IPv6 address range (CIDR) to access this web site. (e.g. 1111:0000:0000:0000:0000:0000:0000:0111/128)

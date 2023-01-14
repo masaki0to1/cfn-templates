@@ -1,0 +1,81 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: The CloudFormation template that creates a WAF for the IP-based restricted access. This template must be used in us-east-1 region.
+
+##########################################################
+# Input Parameters
+##########################################################
+Parameters:
+  SystemName:
+    Description: system name  *name can no longer contain capital letters
+    Type: String
+
+  SourceIpv4RangeList:
+    Description: The comma delimited list of allowed source IPv4 address range (CIDR) to access this web site. (e.g. xxx.xxx.xxx.xxx/xx,yyy.yyy.yyy.yyy/yy)
+    Type: CommaDelimitedList
+
+  # SourceIpv6RangeList:
+  #   Description: The comma delimited list of allowed source IPv6 address range (CIDR) to access this web site. (e.g. 1111:0000:0000:0000:0000:0000:0000:0111/128)
+  #   Type: CommaDelimitedList
+  #   Default: 1111:0000:0000:0000:0000:0000:0000:0111/128
+
+Resources:
+##########################################################
+# WAF v2
+##########################################################
+  WAFv2WebACL:
+    Type: AWS::WAFv2::WebACL
+    Properties:
+      # CaptchaConfig:
+      # CustomResponseBodies:
+      DefaultAction: # Required
+        Block: {}
+      Description: WAF v2 WebACL for the IP-based restricted access 
+      Name: !Sub WebACL-${SystemName}-app
+      Rules:
+        - Name: !Sub CustomRule-IpWhiteList-${SystemName}-app
+          Action:
+            Allow: {}
+          Priority: 0
+          Statement:
+            # OrStatement:
+              # Statements:
+            IPSetReferenceStatement:
+              Arn: !GetAtt WAFv2Ipv4WhiteList.Arn
+                # - IPSetReferenceStatement:
+                #     Arn: !GetAtt WAFv2Ipv6WhiteList.Arn
+          VisibilityConfig: 
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: !Sub CustomRule-IpWhiteList-${SystemName}-app
+      Scope: CLOUDFRONT # Required
+      VisibilityConfig: # Required
+        CloudWatchMetricsEnabled: true
+        MetricName: !Sub WebACL-${SystemName}-app
+        SampledRequestsEnabled: true
+      Tags:
+        - Key: Cost
+          Value: !Ref SystemName
+    DependsOn:
+    - WAFv2Ipv4WhiteList
+  
+  WAFv2Ipv4WhiteList:
+    Type: AWS::WAFv2::IPSet
+    Properties:
+      Addresses: !Ref SourceIpv4RangeList # Required
+      Description: WAF v2 IPv4 white list for the IP-based restricted access
+      IPAddressVersion: IPV4 # Required
+      Name: !Sub Ipv4WhiteList-${SystemName}-app
+      Scope: CLOUDFRONT # Required
+      Tags:
+        - Key: Cost
+          Value: !Ref SystemName
+
+##########################################################
+# Output Parameters
+##########################################################
+Outputs:
+# WAF v2 WebACL
+  WAFv2WebACLArn:
+    Value: !GetAtt WAFv2WebACL.Arn
+    Export: 
+      Name: !Sub ${AWS::StackName}-WAFv2WebACL-Arn
